@@ -1,4 +1,4 @@
-# DxD Jukebox ("DJ")
+# DxD Jukebox ("DxDJ")
 
 Two web pages driven by one schedule, plus an admin page that manages both.
 
@@ -13,7 +13,7 @@ It is built with [Observable Notebook Kit](https://observablehq.com/notebook-kit
 ## Layout
 
 ```
-dxd-jukebox/
+dxdjukebox/
 ├─ README.md
 └─ nbks/
    ├─ index.html     near-empty notebook with links to the others

@@ -1,17 +1,35 @@
 <!doctype html>
 <notebook theme="air">
   <title>DxD Jukebox — Screen</title>
-  <script id="1" type="module">
+  <script id="1" type="module" hidden="">
     import {repo} from "./config.js";
     import {watchCurrent} from "./lib.js";
 
-    const current = Generators.observe((change) =>
-      watchCurrent(repo, (item) => change({item}), (error) => change({error, item: null}))
-    );
+    const frame = page.querySelector("#frame");
+    const message = page.querySelector("#message");
+
+    function showItem(item) {
+      message.style.display = "none";
+      frame.src = item.url;
+      frame.title = item.title;
+      frame.style.display = "block";
+    }
+    function showMessage(text, isError) {
+      frame.style.display = "none";
+      frame.removeAttribute("src");
+      message.style.color = isError ? "crimson" : "#666";
+      message.textContent = text;
+      message.style.display = "flex";
+    }
+
+    watchCurrent(repo,
+      (item) => (item ? showItem(item) : showMessage("Nothing scheduled right now.", false)),
+      (error) => showMessage(error, true));
   </script>
-  <script id="2" type="text/html">
-    ${current.error ? html`<p style="color:crimson">${current.error}</p>`
-    : current.item ? html`<iframe src=${current.item.url} title=${current.item.title} style="width:100%;height:90vh;border:0" referrerpolicy="no-referrer" allow="fullscreen; autoplay"></iframe>`
-    : html`<p style="font:16px system-ui;color:#666;text-align:center;padding:4em 0">Nothing scheduled right now.</p>`}
+  <script id="2" type="text/html" output="page">
+    <div>
+      <iframe id="frame" style="width:100%;height:90vh;border:0;display:none" referrerpolicy="no-referrer" allow="fullscreen; autoplay"></iframe>
+      <div id="message" style="width:100%;height:90vh;display:none;align-items:center;justify-content:center;text-align:center;font:16px system-ui"></div>
+    </div>
   </script>
 </notebook>

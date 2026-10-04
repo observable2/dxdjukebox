@@ -15,25 +15,36 @@
       * {
         margin-top:0 !important;
       }
+      /* every cell's wrapper div gets Observable's default cell margin (17px 0); this project never relies on that spacing (each page has at most one visible content cell), so it's collapsed everywhere rather than just on empty/hidden cells, which is fragile (:empty only matches a cell with zero child nodes, including no whitespace text nodes) */
+      .observablehq--cell {
+        margin: 0;
+      }
       /* edit your backgound colors
-         these colors are intended to show you where the elements are
-         and how to configure them */
+        these colors are intended to show you where the elements are
+        and how to configure them */
       html {
-        background-color: lightcyan;
+        background-color: black;
         margin:0;
-        padding:2vw; /* change this to override template default */
+        padding:0; /* change this to override template default */
         border:0;
       }
       /* and edit this for body properties */
       body {
-        background-color: cornsilk;
+        background-color: lightgray;
         max-width: none;
         margin:0;
-        padding:2vw; /* change this to override template default */
+        padding:0; /* change this to override template default */
         border:0;
       }
       div {
         background-color: white; /* change this to override template default */
+      }
+      main {
+        background-color: white;
+        max-width: none;
+        margin:0;
+        padding:0; /* change this to override template default */
+        border:0;
       }
       /* add more custom styles here */
     </style>

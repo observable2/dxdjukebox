@@ -1,0 +1,18 @@
+<!doctype html>
+<notebook theme="air">
+  <title>DxD Jukebox — Screen</title>
+  <script id="1" type="module">
+    import {html as h} from "npm:htl";
+    import {repo} from "./config.js";
+    import {watchCurrent} from "./lib.js";
+    import {renderScreen, renderError} from "./views.js";
+
+    const box = display(h`<div></div>`);
+    const stop = watchCurrent(
+      repo,
+      (item) => box.replaceChildren(renderScreen(h, item)),
+      (message) => box.replaceChildren(renderError(h, message))
+    );
+    if (typeof invalidation !== "undefined") invalidation.then(stop);
+  </script>
+</notebook>

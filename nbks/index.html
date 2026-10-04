@@ -1,0 +1,162 @@
+<!doctype html>
+<notebook theme="air">
+  <title>DxD Jukebox</title>
+  <script id="8" type="text/html" pinned="">
+    <div style="position:relative;background-color:black;color:white;width:100vw;height:56.25vw;">
+      <div style="position:absolute;top:0;left:0;width:100%;height:100%;">
+        <iframe></iframe>
+      </div>
+      <div style="position:absolute;top:51.25vw;left:0;height:5vw;width:100%;background-color:rgb(78, 54, 41);display: flex;align-items:center;justify-content:center;font-size: 2vw;">
+        <span id="caption"></span>
+      </div>
+    </div>
+    <style>
+      iframe {
+        border: none;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </script>
+  <script id="21" type="text/html">
+    <button id="updateButton">Update iframe</button>
+  </script>
+  <script id="26" type="module" pinned="">
+    // Initialize display immediately when this cell runs
+    (async function initializeDisplay() {
+      try {
+        // Wait a brief moment to ensure DOM elements are ready
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Create the item data object with current input values
+        const initialItemData = {
+          "title": titleInput,
+          "URL": urlInput,
+          "author": authorInput,
+          "date": dateInput,
+          "media": mediaInput,
+          "URLtext": urlTextInput
+        };
+
+        await putDataIntoDisplay(initialItemData);
+        console.log('Initialized iframe and caption');
+        display('Initialized iframe and caption');
+      } catch (error) {
+        display(`Error initializing display: ${error.message}`);
+      }
+    })();
+  </script>
+  <script id="4" type="module" pinned="">
+    // Button logic for updating iframe
+    const updateButton = document.getElementById('updateButton');
+
+    updateButton.addEventListener('click', async () => {
+      try {
+        updateButton.disabled = true;
+        updateButton.textContent = 'Sending...';
+
+        // Create the item data object directly here to ensure it's available
+        const currentItemData = {
+          "title": titleInput,
+          "URL": urlInput,
+          "author": authorInput,
+          "date": dateInput,
+          "media": mediaInput,
+          "URLtext": urlTextInput
+        };
+
+        await putDataIntoDisplay(currentItemData);
+        display('Successfully updated iframe and caption');
+
+        updateButton.textContent = 'Update iframe';
+        updateButton.disabled = false;
+      } catch (error) {
+        display(`Error: ${error.message}`);
+        updateButton.textContent = 'Update iframe';
+        updateButton.disabled = false;
+      }
+    });
+  </script>
+  <script id="2" type="module" pinned="">
+    // JSON data that updates reactively based on inputs
+    const itemData = {
+      "title": titleInput,
+      "URL": urlInput,
+      "author": authorInput,
+      "date": dateInput,
+      "media": mediaInput,
+      "URLtext": urlTextInput
+    };
+    display(itemData);
+  </script>
+  <script id="15" type="module" pinned="">
+    async function putDataIntoDisplay(itemData) {
+      // Get the iframe element
+      const iframe = document.querySelector('iframe');
+
+      // Set the src attribute to the URL from itemData
+      if (iframe && itemData.URL) {
+        iframe.src = itemData.URL;
+        let elem = document.getElementById("caption");
+        let title = itemData.title ? "<cite>" + itemData.title + "</cite> &nbsp; " : "";
+        let author = itemData.author ? "by " + itemData.author + " &nbsp; " : "";
+        let date = itemData.date ? "(" + itemData.date + ") &nbsp; " : "";
+        let media = itemData.media ? "(" + itemData.media + ") &nbsp; " : "";
+        let urlText = itemData.URLtext ? itemData.URLtext : "";
+        elem.innerHTML = title + author + date + media + urlText;
+        return "Done."
+      }
+    }
+  </script>
+  <script id="6" type="module" pinned="">
+    // Input form for JSON data using view() for reactivity
+    const titleInput = view(Inputs.text({label: "Title", value: "Reading"}));
+    const urlInput = view(Inputs.text({label: "URL", value: "https://shi.programmatology.com/reading"}));
+    const authorInput = view(Inputs.text({label: "Author", value: "John Cayley"}));
+    const dateInput = view(Inputs.text({label: "Date", value: "2025"}));
+    const mediaInput = view(Inputs.text({label: "Media", value: ""}));
+    const urlTextInput = view(Inputs.text({label: "URL Text", value: "shi.programmatology.com/reading"}));
+  </script>
+  <script id="17" type="text/html" pinned="">
+    <button id="addButton">Add to Array</button>
+  </script>
+  <script id="20" type="module" pinned="">
+    // Button logic for adding current inputs to the array
+    const addButton = document.getElementById('addButton');
+
+    // Use a mutable value that persists across cell re-evaluations
+    // Only initialize if it doesn't exist
+    if (!window.itemsArrayGenerator) {
+      window.itemsArrayGenerator = Inputs.input([]);
+    }
+
+    addButton.addEventListener('click', async () => {
+      try {
+        addButton.disabled = true;
+        addButton.textContent = 'Adding...';
+
+        // Get current array value and add new item
+        const currentArray = window.itemsArrayGenerator.value;
+        const newArray = [...currentArray, {...itemData}];
+
+        // Update the input value to trigger reactivity
+        window.itemsArrayGenerator.value = newArray;
+        window.itemsArrayGenerator.dispatchEvent(new Event('input'));
+
+        addButton.textContent = 'Add to Array';
+        addButton.disabled = false;
+      } catch (error) {
+        display(`Error: ${error.message}`);
+        addButton.textContent = 'Add to Array';
+        addButton.disabled = false;
+      }
+    });
+
+    // Create a reactive view of the array
+    const itemsArray = view(window.itemsArrayGenerator);
+    display(itemsArray);
+  </script>
+  <script id="25" type="text/x-typescript" pinned="">
+    itemsArray
+  </script>
+</notebook>

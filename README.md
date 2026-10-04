@@ -1,14 +1,16 @@
 # DxD Jukebox ("DxDJ")
 
-Two web pages driven by one schedule, plus an admin page that manages both.
+Two synchronized web pages driven by one schedule, plus an admin page that manages both.
 
 - **Screen** shows web content, made to be embedded elsewhere.
-- **Titles** shows the full didactic metadata for exactly what the Screen is showing right now.
+- **Titles** shows the full didactic metadata for exactly what the Screen is currently showing and serves as the landing page for the site.
 - **Admin** manages the item database and the schedule.
+
+The site's default/root page (`index.html`, shows Titles information.
 
 It is built with [Observable Notebook Kit](https://observablehq.com/notebook-kit/) as a static site. The data lives in Supabase (hosted Postgres), because a static site has no server of its own.
 
-*Last updated 4 Oct 2026 (admin item search added).*
+*Last updated 4 Oct 2026 (admin item search added; site root redirects to Titles).*
 
 ## Layout
 
@@ -16,9 +18,8 @@ It is built with [Observable Notebook Kit](https://observablehq.com/notebook-kit
 dxdjukebox/
 ├─ README.md
 └─ nbks/
-   ├─ index.html     near-empty notebook with links to the others
+   ├─ index.html     the site's default page; it is the Titles page (see above)
    ├─ screen.html    Screen page
-   ├─ titles.html    Titles page
    ├─ admin.html     Admin page
    ├─ config.js      Supabase URL + anon key; creates `repo`
    ├─ lib.js         fields, validation, scheduling logic

@@ -2,17 +2,20 @@
 <notebook theme="air">
   <title>DxD Jukebox — Titles</title>
   <script id="1" type="module">
-    import {html as h} from "npm:htl";
     import {repo} from "./config.js";
-    import {watchCurrent} from "./lib.js";
-    import {renderTitles, renderError} from "./views.js";
+    import {watchCurrent, FIELDS} from "./lib.js";
 
-    const box = display(h`<div></div>`);
-    const stop = watchCurrent(
-      repo,
-      (item) => box.replaceChildren(renderTitles(h, item)),
-      (message) => box.replaceChildren(renderError(h, message))
+    const current = Generators.observe((change) =>
+      watchCurrent(repo, (item) => change({item}), (error) => change({error, item: null}))
     );
-    if (typeof invalidation !== "undefined") invalidation.then(stop);
+
+    // One <dt>/<dd> pair per field that has a value, skipping the title (shown as a heading). Built in JS
+    // because the number of rows depends on which fields are present on the current item.
+    const rows = (item) => FIELDS.filter((f) => f.key !== "title" && item[f.key]).map((f) => html.fragment`<dt style="font-weight:600">${f.label}</dt><dd style="margin:0;white-space:pre-wrap">${f.key === "url" ? html`<a href=${item.url} target=_blank rel=noopener>${item.url}</a>` : item[f.key]}</dd>`);
+  </script>
+  <script id="2" type="text/html">
+    ${current.error ? html`<p style="color:crimson">${current.error}</p>`
+    : !current.item ? html`<p style="font:16px system-ui;color:#666">Nothing scheduled right now.</p>`
+    : html`<div style="font:15px system-ui;max-width:720px"><h2 style="margin-bottom:4px">${current.item.title}</h2><dl style="display:grid;grid-template-columns:max-content 1fr;gap:6px 16px">${rows(current.item)}</dl></div>`}
   </script>
 </notebook>

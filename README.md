@@ -8,7 +8,7 @@ Two web pages driven by one schedule, plus an admin page that manages both.
 
 It is built with [Observable Notebook Kit](https://observablehq.com/notebook-kit/) as a static site. The data lives in Supabase (hosted Postgres), because a static site has no server of its own.
 
-*Last updated 4 Oct 2026.*
+*Last updated 4 Oct 2026 (admin item search added).*
 
 ## Layout
 
@@ -23,7 +23,6 @@ dxd-jukebox/
    ├─ config.js      Supabase URL + anon key; creates `repo`
    ├─ lib.js         fields, validation, scheduling logic
    ├─ repo.js        storage adapters (Supabase, local) + createRepo
-   ├─ views.js       what Screen and Titles draw
    ├─ admin.js       the Admin page UI
    └─ schema.sql     Supabase tables and security policies
 ```
@@ -65,6 +64,8 @@ Security comes from row-level security in `schema.sql`: anyone can read, and onl
 
 Only Title, URL and Year created are required.
 
+On the Admin page, the items table has a search box above it to find a specific item to edit or delete, matching against title or authorship (case-insensitive, substring match). Clicking **Edit** loads that item into the form above; clicking **Delete** removes it and its slots after confirmation.
+
 - **Years** are four digits (1000–9999). **Month/Day** is written `M/D`. A leading zero is accepted (`03/14`) and stored as `3/14`. The day must exist in that month. `2/29` is allowed because the year may be unknown.
 - **Year published default:** if left blank, the current year is filled in when the item is saved and stored, so an item saved in 2026 stays 2026 in later years.
 - **Duration format:** colon separated, with no leading zero on the first number (`3:45`, `90:00`, `1:02:30`, not `03:45`). Numbers after a colon are two digits and below 60 (`3:05`, not `3:5`).
@@ -91,7 +92,7 @@ Only Title, URL and Year created are required.
 
 ## Development notes
 
-The logic in `lib.js`, `repo.js`, `views.js` and `admin.js` was developed and tested in an Observable notebook with the local adapter. It has not been tested against a live Supabase project or built inside Notebook Kit. On first run, check that:
+The logic in `lib.js`, `repo.js` and `admin.js` was developed and tested in an Observable notebook with the local adapter. It has not been tested against a live Supabase project or built inside Notebook Kit. On first run, check that:
 
 - the pages load and local imports (`./config.js`, `./lib.js`, …) resolve;
 - a signed-out visitor can read but not write in Supabase;

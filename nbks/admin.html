@@ -2,10 +2,9 @@
 <notebook theme="air">
   <title>DxD Jukebox — Admin</title>
   <script id="1" type="module">
-    import {html as h} from "npm:htl";
     import {repo} from "./config.js";
     import {mountAdmin} from "./admin.js";
 
-    mountAdmin(display(h`<div></div>`), repo, h);
+    mountAdmin(display(html`<div></div>`), repo, html);
   </script>
 </notebook>

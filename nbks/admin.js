@@ -8,6 +8,7 @@ export function mountAdmin(root, repo, html) {
     data: {items: [], slots: []},
     editing: {},                       // the item in the form ({} = a new one)
     slot: {itemId: "", days: [], start: "09:00", end: "10:00", weeks: 1, from: todayISO()},   // the slot form, kept between redraws
+    search: "",                        // items-table filter text, kept between redraws
     msg: ""
   };
 
@@ -61,15 +62,26 @@ export function mountAdmin(root, repo, html) {
       st.editing = {};
       await refresh();
     });
-    const rows = st.data.items.map((it) => html`<tr>
+    const row = (it) => html`<tr>
       <td>${it.title}</td><td>${it.authorship}</td>
       <td>${it.duration}${it.durationIsDefault ? html` <small style="color:#666">(first slot)</small>` : ""}</td>
       <td><button onclick=${() => { st.editing = it; st.msg = ""; render(); }}>Edit</button>
         <button disabled=${ro} onclick=${guard(async () => {
           if (confirm('Delete "' + it.title + '" and its slots?')) { await repo.deleteItem(it.id); await refresh(); }
-        })}>Delete</button></td></tr>`);
+        })}>Delete</button></td></tr>`;
+    // Matches on title or authorship, so a specific item can be found (to edit or delete) without
+    // scrolling a long list. Filtering updates just the table body, not the whole panel, so the
+    // search box keeps focus and caret position while typing.
+    const matching = (q) => st.data.items.filter((it) =>
+      !q || it.title.toLowerCase().includes(q) || (it.authorship ?? "").toLowerCase().includes(q));
+    const noMatch = () => html`<tr><td colspan=4 style="color:#666">No items match "${st.search}"</td></tr>`;
+    const rowsFor = (q) => { const found = matching(q).map(row); return found.length ? found : [noMatch()]; };
+    const tbody = html`<tbody>${rowsFor(st.search.trim().toLowerCase())}</tbody>`;
+    const search = html`<input type=search placeholder="Find an item by title or authorship…" style="width:100%" value=${st.search}
+      oninput=${() => { st.search = search.value; tbody.replaceChildren(...rowsFor(st.search.trim().toLowerCase())); }}>`;
     return html`<section><h3>Items (${st.data.items.length})</h3>${form}
-      <table style="width:100%;margin-top:10px"><tr><th align=left>Title</th><th align=left>Authorship</th><th align=left>Duration</th><th></th></tr>${rows}</table></section>`;
+      <div style="margin-top:10px">${search}</div>
+      <table style="width:100%;margin-top:6px"><tr><th align=left>Title</th><th align=left>Authorship</th><th align=left>Duration</th><th></th></tr>${tbody}</table></section>`;
   }
 
   function schedulePanel() {

@@ -30,3 +30,10 @@ create policy "public read items" on jukebox_items for select using (true);
 create policy "public read slots" on jukebox_slots for select using (true);
 create policy "admin write items" on jukebox_items for all to authenticated using (true) with check (true);
 create policy "admin write slots" on jukebox_slots for all to authenticated using (true) with check (true);
+-- RLS policies only restrict which rows a role sees; the role still needs the underlying table
+-- grant to touch the table at all. Supabase usually sets this up automatically for new tables in
+-- "public", but it doesn't always take — if you hit "permission denied for table ..." (Postgres
+-- error 42501) after running the above, run this block too.
+grant usage on schema public to anon, authenticated;
+grant select on jukebox_items, jukebox_slots to anon, authenticated;
+grant insert, update, delete on jukebox_items, jukebox_slots to authenticated;

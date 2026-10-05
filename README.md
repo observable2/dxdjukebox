@@ -3,14 +3,14 @@
 Two synchronized web pages driven by one schedule, plus an admin page that manages both.
 
 - **Screen** shows web content, made to be embedded elsewhere.
-- **Titles** shows the full didactic metadata for exactly what the Screen is currently showing and serves as the landing page for the site.
+- **Titles** shows the full didactic metadata for exactly what the Screen is currently showing.
 - **Admin** manages the item database and the schedule.
 
-The site's default/root page (`index.html`, shows Titles information.
+Titles is also the site's default/landing page: its file is `nbks/index.html` (there is no separate `titles.html` — the file was moved/renamed there), so visiting the site's root URL shows Titles directly, with no redirect involved.
 
 It is built with [Observable Notebook Kit](https://observablehq.com/notebook-kit/) as a static site. The data lives in Supabase (hosted Postgres), because a static site has no server of its own.
 
-*Last updated 4 Oct 2026 (admin item search added; site root redirects to Titles).*
+*Last updated 4 Oct 2026 (admin item search added; Titles moved to index.html as the site's default page).*
 
 ## Layout
 
@@ -18,7 +18,7 @@ It is built with [Observable Notebook Kit](https://observablehq.com/notebook-kit
 dxdjukebox/
 ├─ README.md
 └─ nbks/
-   ├─ index.html     the site's default page; it is the Titles page (see above)
+   ├─ index.html     Titles page (also the site's default/landing page, see above)
    ├─ screen.html    Screen page
    ├─ admin.html     Admin page
    ├─ config.js      Supabase URL + anon key; creates `repo`

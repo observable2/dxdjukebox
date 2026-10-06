@@ -10,7 +10,8 @@ const toRow = {
     where_created: nul(i.whereCreated),
     publisher: nul(i.publisher), media: nul(i.media), delivery: nul(i.delivery), duration: nul(i.duration), notes: nul(i.notes),
     course: nul(i.course), mentor: nul(i.mentor), license: nul(i.license), credits: nul(i.credits),
-    rotation: !!i.rotation}),
+    rotation: !!i.rotation,
+    hide_url: !!i.hideURL, further_info_url: nul(i.furtherInfoURL)}),
   slot: (s) => ({item_id: s.itemId, days: s.days, start_time: s.start, end_time: s.end, weeks: s.weeks, from_date: s.from, rotation: !!s.rotation})
 };
 const fromRow = {
@@ -20,7 +21,8 @@ const fromRow = {
     whereCreated: r.where_created ?? "",
     publisher: r.publisher ?? "", media: r.media ?? "", delivery: r.delivery ?? "", duration: r.duration ?? "", notes: r.notes ?? "",
     course: r.course ?? "", mentor: r.mentor ?? "", license: r.license ?? "", credits: r.credits ?? "",
-    rotation: !!r.rotation}),
+    rotation: !!r.rotation,
+    hideURL: !!r.hide_url, furtherInfoURL: r.further_info_url ?? ""}),
   slot: (r) => ({id: r.id, itemId: r.item_id, days: r.days, start: r.start_time, end: r.end_time, weeks: r.weeks, from: r.from_date, rotation: !!r.rotation})
 };
 
@@ -86,8 +88,9 @@ function cleanItem(item) {
   // An item that came back from load() carries the slot-derived duration in "duration". If that value is still
   // unchanged it must not be frozen into the record; a duration the user typed (different from it) is kept.
   if (it.durationIsDefault && it.duration === it.durationDefault) it.duration = "";
-  for (const k of ["title", "url", "yearCreated", "monthDayCreated", "yearPublished", "monthDayPublished", "duration"]) it[k] = str(it[k]);
+  for (const k of ["title", "url", "yearCreated", "monthDayCreated", "yearPublished", "monthDayPublished", "duration", "furtherInfoURL"]) it[k] = str(it[k]);
   it.rotation = !!it.rotation;
+  it.hideURL = !!it.hideURL;
   if (!it.title) throw new Error("Title is required");
   if (!it.url) throw new Error("URL is required");
   if (!validYear(it.yearCreated)) throw new Error("Year created is required: a four-digit year, e.g. 2024");

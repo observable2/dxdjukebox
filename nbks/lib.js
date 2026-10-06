@@ -30,7 +30,7 @@ export const normalizeMonthDay = (t) => t.split("/").map(Number).join("/");
 // (Year published defaults to the current year; Duration defaults to the length of the item's first slot).
 export const FIELDS = [
   {key:"title",label:"Title",required:true},{key:"authorship",label:"Authorship"},
-  {key:"url",label:"URL",type:"url",required:true},
+  {key:"url",label:"URL",type:"url",required:true},{key:"hideURL",label:"Hide URL",type:"checkbox"},
   {key:"yearCreated",label:"Year created",required:true,pattern:YEAR_PATTERN,placeholder:"e.g. 2024"},
   {key:"monthDayCreated",label:"Month/Day created",pattern:MONTHDAY_PATTERN,placeholder:"optional, e.g. 3/14"},
   {key:"yearPublished",label:"Year published",pattern:YEAR_PATTERN,placeholder:"defaults to " + currentYear()},
@@ -39,7 +39,7 @@ export const FIELDS = [
   {key:"publisher",label:"Publisher"},{key:"media",label:"Constituent media"},
   {key:"delivery",label:"Delivery medium"},
   {key:"duration",label:"Duration",pattern:DURATION_PATTERN,placeholder:"e.g. 3:45 or 1:02:30; blank = length of first slot"},
-  {key:"notes",label:"Notes",type:"textarea"},
+  {key:"notes",label:"Notes",type:"textarea"},{key:"furtherInfoURL",label:"Further info URL",type:"url"},
   {key:"course",label:"Course"},{key:"mentor",label:"Mentor"},{key:"license",label:"License"},
   {key:"credits",label:"Credits",type:"textarea"},
   {key:"rotation",label:"Included in Rotation",type:"checkbox"}];

@@ -2,15 +2,15 @@
 
 Two synchronized web pages driven by one schedule, plus an admin page that manages both.
 
-- **Screen** shows web content, made to be embedded elsewhere.
+- **Screen** shows web content, made to be embedded elsewhere. A URL ending in a video file extension (`.mp4`, `.m4v`, `.webm`, `.mov`, `.ogv`) is played in a muted, looping, letterboxed (never cropped) `<video>`; anything else goes in an iframe.
 - **Titles** shows the full didactic metadata for exactly what the Screen is currently showing.
-- **Admin** manages the item database and the schedule.
+- **Admin** manages the item database, the schedule and the rotation.
 
 Titles is also the site's default/landing page: its file is `nbks/index.html` (there is no separate `titles.html` — the file was moved/renamed there), so visiting the site's root URL shows Titles directly, with no redirect involved.
 
 It is built with [Observable Notebook Kit](https://observablehq.com/notebook-kit/) as a static site. The data lives in Supabase (hosted Postgres), because a static site has no server of its own.
 
-*Last updated 4 Oct 2026 (admin item search added; Titles moved to index.html as the site's default page).*
+*Version 1.0.0. Last updated 6 Oct 2026.*
 
 ## Layout
 
@@ -28,14 +28,25 @@ dxdjukebox/
    └─ schema.sql     Supabase tables and security policies
 ```
 
-The three pages never touch the database directly. They talk to `repo` (`load`, `saveItem`, `deleteItem`, `addSlot`, `deleteSlot`), so the backend can be swapped without changing them.
+The three pages never touch the database directly. They talk to `repo` (`load`, `saveItem`, `deleteItem`, `addSlot`, `deleteSlot`, `generateRotation`, `clearRotation`, `resetRotationFlags`), so the backend can be swapped without changing them.
 
 ## Setup
 
 1. Create a Supabase project and run `nbks/schema.sql` in its SQL Editor.
 2. Under Authentication, create one admin user and turn off public sign-ups.
 3. Put the project URL and the public anon key in `nbks/config.js`.
-4. Build the site with Notebook Kit (with `nbks` as the notebook folder) and deploy the output.
+4. Build the site with Notebook Kit (with `nbks` as the notebook folder) and deploy the output. The Notebook Kit version is pinned in `package.json` (2.6.6); change it deliberately, since the kit is pre-1.0 and changes quickly.
+
+**Upgrading an existing Supabase project** (one created before 1.0.0): run this once in the SQL Editor. If the API still reports a missing column, run `notify pgrst, 'reload schema';`.
+
+```sql
+alter table jukebox_items
+  add column if not exists rotation boolean not null default false,
+  add column if not exists hide_url boolean not null default false,
+  add column if not exists further_info_url text;
+alter table jukebox_slots
+  add column if not exists rotation boolean not null default false;
+```
 
 With `config.js` left blank, the pages use the browser's `localStorage`, which is handy for trying everything locally. Data stored that way is per browser and is not shared between devices.
 
@@ -47,7 +58,8 @@ Security comes from row-level security in `schema.sql`: anyone can read, and onl
 |---|---|---|
 | Title | yes | |
 | Authorship | no | |
-| URL | yes | the page the Screen displays |
+| URL | yes | the page or video file the Screen displays |
+| Hide URL | no | checkbox (default off); when ticked, Titles does not show the URL |
 | Year created | yes | four digits, e.g. `2024` |
 | Month/Day created | no | `M/D`, e.g. `3/14` |
 | Year published | no | four digits; defaults to the current year when saved |
@@ -58,14 +70,16 @@ Security comes from row-level security in `schema.sql`: anyone can read, and onl
 | Delivery medium | no | |
 | Duration | no | `M:SS` or `H:MM:SS`; defaults to the length of the item's first slot |
 | Notes | no | |
+| Further info URL | no | an optional link, shown on Titles as a link if its row exists in the Titles page |
 | Course | no | |
 | Mentor | no | |
 | License | no | |
 | Credits | no | |
+| Included in Rotation | no | checkbox (default off, key `rotation`); items ticked here are cycled by **Generate rotation** |
 
 Only Title, URL and Year created are required.
 
-On the Admin page, the items table has a search box above it to find a specific item to edit or delete, matching against title or authorship (case-insensitive, substring match). Clicking **Edit** loads that item into the form above; clicking **Delete** removes it and its slots after confirmation.
+On the Admin page, each form label shows the field's key in parentheses (these keys are the ids Titles uses, below). The items table has a search box above it to find a specific item to edit or delete, matching against title or authorship (case-insensitive, substring match). Clicking **Edit** loads that item into the form above; clicking **Delete** removes it and its slots after confirmation.
 
 - **Years** are four digits (1000–9999). **Month/Day** is written `M/D`. A leading zero is accepted (`03/14`) and stored as `3/14`. The day must exist in that month. `2/29` is allowed because the year may be unknown.
 - **Year published default:** if left blank, the current year is filled in when the item is saved and stored, so an item saved in 2026 stays 2026 in later years.
@@ -79,7 +93,23 @@ On the Admin page, the items table has a search box above it to find a specific 
 - Times are in 5-minute steps. A slot covers `[start, end)`, the end must be later than the start, and `24:00` is allowed as an end.
 - **Slots may not overlap**, but unscheduled time is allowed. Two slots conflict only if they share a time of day **and** there is a real calendar date on which both apply (weekdays, start date and number of weeks are all considered). Back-to-back slots (one ends at 10:00, the next starts at 10:00) are fine.
 - Times outside every slot are unscheduled: Screen and Titles show "Nothing scheduled right now."
+## Rotation
+
+The **Rotation** section of the Admin page fills the schedule automatically from the items ticked "Included in Rotation".
+
+- **Slot duration** (default 10 minutes; whole minutes in multiples of 5).
+- **Generate rotation** removes the previous rotation and creates back-to-back slots for every day, 00:00 to 24:00, repeating weekly with no end date from today. They cycle through the flagged items in title order, and the cycle restarts at midnight. If the duration does not divide the day evenly, the last slot of the day is shorter. It needs at least one flagged item.
+- **Clear rotation** removes only the generated slots. The items' flags are left alone.
+- **Set all items' rotation to false** un-ticks every item (after confirmation) without touching any slots.
+- The section lists the items in the generated rotation with their slot length, not the slots themselves. The Schedule section lists manual slots only.
+- **Manual slots win.** Where a manual slot and a rotation slot cover the same time, the manual slot is shown, and when the manual slot ends (or its weeks run out) the rotation resumes. Manual slots may be added over a running rotation. The rotation does not shift around them: an item whose turn is covered by a manual slot is simply skipped for that time.
+- Generated slots are marked with `rotation = true` in `jukebox_slots`.
+
 - Screen and Titles poll every 20 seconds and redraw only when the current item changes, so the embedded page is not reloaded on every poll.
+
+## Customizing the Titles page
+
+Cell 2 of `nbks/index.html` decides which fields appear and what they are called. For each field in `FIELDS`, the page looks for `<dd id="{key}Value">` (and optionally `<dt id="{key}">` holding the label). A field is shown only if its `dd` exists and the item has a value; its `dt` and `dd` are hidden otherwise. Delete a pair to leave a field out, reorder pairs freely, and write labels (and `<br>` breaks) in the markup. `url` and `furtherInfoURL` are rendered as links, and `url` is hidden when the item has Hide URL ticked. The title goes in `#heading`. The label column width is the `--label-col` variable, and the heading is aligned to the value column. Below 480px wide the labels stack above their values.
 
 ## Known limits and open questions
 
@@ -89,6 +119,8 @@ On the Admin page, the items table has a search box above it to find a specific 
 - **"First slot"** is by start date and time of day, not by the order slots were added. An item with slots of different lengths gets only the first one's length as its default.
 - Years are not cross-checked (a published year earlier than the created year is accepted), and an explicit duration is not checked against slot lengths.
 - Slots can be added and removed but not yet edited in place.
+- **Video:** playback is muted (browsers block unmuted autoplay) and the file's host must allow direct linking; a file that cannot be played shows a message on Screen.
+- **Rotation:** Generate removes the old rotation before inserting the new one, so a failed insert leaves no rotation (run Generate again). Items flagged after a rotation was generated are not included until you generate again.
 - Screen and Titles can differ by up to one poll interval.
 
 ## Development notes

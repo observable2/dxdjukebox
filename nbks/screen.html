@@ -6,21 +6,47 @@
     import {watchCurrent} from "./lib.js";
 
     const frame = page.querySelector("#frame");
+    const video = page.querySelector("#video");
     const message = page.querySelector("#message");
 
-    function showItem(item) {
-      message.style.display = "none";
-      frame.src = item.url;
-      frame.title = item.title;
-      frame.style.display = "block";
-    }
-    function showMessage(text, isError) {
+    // A URL whose path ends in a video file extension is played in <video>; anything else goes in the iframe.
+    const isVideo = (url) => /\.(mp4|m4v|webm|mov|ogv)$/i.test(url.split(/[?#]/)[0]);
+    // Stops and empties both players so the one not in use is neither visible nor playing in the background.
+    function stopAll() {
       frame.style.display = "none";
       frame.removeAttribute("src");
+      video.pause();
+      video.style.display = "none";
+      video.removeAttribute("src");
+      video.load();
+    }
+
+    function showItem(item) {
+      stopAll();
+      message.style.display = "none";
+      if (isVideo(item.url)) {
+        video.src = item.url;
+        video.title = item.title;
+        video.style.display = "block";
+        video.play().catch(() => {});   // autoplay is allowed because the video is muted; ignore a refusal
+      } else {
+        frame.src = item.url;
+        frame.title = item.title;
+        frame.style.display = "block";
+      }
+    }
+    function showMessage(text, isError) {
+      stopAll();
       message.style.color = isError ? "crimson" : "#666";
       message.textContent = text;
       message.style.display = "flex";
     }
+
+    // A video that cannot be loaded or decoded (bad link, hotlinking refused, unsupported codec) gets the same
+    // quiet message as an empty schedule. The check on "src" ignores the error stopAll() could trigger by emptying it.
+    video.addEventListener("error", () => {
+      if (video.getAttribute("src")) showMessage("The DxD Jukebox “Screen” • This video could not be played.", false);
+    });
 
     watchCurrent(repo,
       (item) => (item ? showItem(item) : showMessage("The DxD Jukebox “Screen” • Nothing is scheduled at this time.", false)),
@@ -29,6 +55,8 @@
   <script id="2" type="text/html" output="page">
     <div>
       <iframe id="frame" style="width:100%;height:90vh;border:0;display:none" referrerpolicy="no-referrer" allow="fullscreen; autoplay"></iframe>
+      <!-- muted + playsinline are what let browsers autoplay; loop repeats until the schedule moves on; contain = letterboxed, never cropped -->
+      <video id="video" autoplay muted loop playsinline style="width:100%;height:90vh;display:none;object-fit:contain;background:#000"></video>
       <div id="message" style="width:100%;height:90vh;display:none;align-items:center;justify-content:center;text-align:center;"></div>
     </div>
   </script>

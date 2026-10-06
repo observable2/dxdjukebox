@@ -23,12 +23,12 @@
         const dd = fields.querySelector(`#${f.key}Value`);
         if (!dd) continue;
         const dt = fields.querySelector(`#${f.key}`);
-        const value = f.key === "title" ? "" : item[f.key];
+        const value = f.key === "title" || (f.key === "url" && item.hideURL) ? "" : item[f.key];
         const show = value ? "" : "none";
         dd.style.display = show;
         if (dt) dt.style.display = show;
         if (!value) continue;
-        if (f.key === "url") {
+        if (f.key === "url" || f.key === "furtherInfoURL") {
           const a = document.createElement("a");
           a.href = value;
           a.target = "_blank";
@@ -129,6 +129,7 @@
         <dt id="license">License</dt><dd id="licenseValue"></dd>
         <dt id="duration">Duration</dt><dd id="durationValue" style="font-family: var(--monospace); font-size: .8em;"></dd>
         <dt id="notes"></dt><dd id="notesValue"></dd>
+        <dt id="furtherInfoURL">Further Information</dt><dd id="furtherInfoURLValue"></dd>
         <dt id="course">Course</dt><dd id="courseValue"></dd>
         <dt id="mentor">Advisors</dt><dd id="mentorValue"></dd>
         <dt id="credits">References<br>&amp; thanks</dt><dd id="creditsValue"></dd>

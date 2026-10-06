@@ -12,6 +12,8 @@ create table jukebox_items (
   notes text,
   course text, mentor text, license text, credits text,
   rotation boolean not null default false,
+  hide_url boolean not null default false,
+  further_info_url text,
   updated_at timestamptz default now()
 );
 create table jukebox_slots (

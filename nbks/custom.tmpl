@@ -15,8 +15,8 @@
       *, *::before, *::after {
         box-sizing: border-box;
       }
-      /* force no margin even in the html tag */
-      * {
+      /* force no top margin on every element except the html tag, which keeps a small margin (set below) */
+      *:not(html) {
         margin-top:0 !important;
       }
       /* every cell's wrapper div gets Observable's default cell margin (17px 0); this project never relies on that spacing (each page has at most one visible content cell), so it's collapsed everywhere rather than just on empty/hidden cells, which is fragile (:empty only matches a cell with zero child nodes, including no whitespace text nodes) */
@@ -28,7 +28,8 @@
         and how to configure them */
       html {
         /* background-color: #111111; */
-        margin:0;
+        margin:0 0 0 0;
+        margin-top:1vw; /* very small margin above the whole page; no other side */
         padding:0; /* change this to override template default */
         border:0;
       }

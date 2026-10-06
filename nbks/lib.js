@@ -41,7 +41,8 @@ export const FIELDS = [
   {key:"duration",label:"Duration",pattern:DURATION_PATTERN,placeholder:"e.g. 3:45 or 1:02:30; blank = length of first slot"},
   {key:"notes",label:"Notes",type:"textarea"},
   {key:"course",label:"Course"},{key:"mentor",label:"Mentor"},{key:"license",label:"License"},
-  {key:"credits",label:"Credits",type:"textarea"}];
+  {key:"credits",label:"Credits",type:"textarea"},
+  {key:"rotation",label:"Included in Rotation",type:"checkbox"}];
 
 // Start times: 00:00-23:55 in 5-minute steps. End times: 00:05-24:00 (24:00 = midnight at end of day).
 export const validTime = (t) => /^([01][0-9]|2[0-3]):[0-5][05]$/.test(t);
@@ -63,6 +64,18 @@ export function firstSlot(slots, itemId) {
 }
 // Duration an item falls back to when none is entered: the length of its first slot, or "".
 export const defaultDuration = (slots, itemId) => slotDuration(firstSlot(slots, itemId));
+
+// Rotation: fills every day, 00:00 to 24:00, with back-to-back slots of `minutes` each, cycling through itemIds
+// in order (the cycle restarts at midnight; a final slot is shortened if `minutes` does not divide the day).
+// The slots repeat every week indefinitely from the given date and are marked rotation:true.
+export const validRotationMinutes = (m) => Number.isInteger(m) && m >= 5 && m <= 1440 && m % 5 === 0;
+export function rotationSlots(itemIds, minutes, from) {
+  const hm = (n) => String(Math.floor(n / 60)).padStart(2, "0") + ":" + String(n % 60).padStart(2, "0");
+  const out = [];
+  for (let m = 0, k = 0; m < 1440; m += minutes, k++)
+    out.push({itemId: itemIds[k % itemIds.length], days: [0,1,2,3,4,5,6], start: hm(m), end: hm(Math.min(m + minutes, 1440)), weeks: 0, from, rotation: true});
+  return out;
+}
 
 // Does the slot's day/week pattern include this calendar date? (time of day is not considered)
 export function slotAppliesOn(s, date) {
@@ -93,7 +106,9 @@ export const findConflict = (slots, s, ignoreId) =>
 // Current item: the slot covering now (start <= now < end), or null when nothing is scheduled.
 export function pickCurrent(data, now = new Date()) {
   const hm = hhmm(now);
-  const s = data.slots.find((s) => slotAppliesOn(s, now) && s.start <= hm && hm < (s.end ?? "24:00"));
+  const covers = (s) => slotAppliesOn(s, now) && s.start <= hm && hm < (s.end ?? "24:00");
+  // a manual slot overrides a generated rotation slot covering the same time
+  const s = data.slots.find((s) => !s.rotation && covers(s)) ?? data.slots.find(covers);
   return s ? data.items.find((i) => i.id === s.itemId) ?? null : null;
 }
 // Polls; calls onChange(item|null) only when the current item changes; onError(message) on failure.

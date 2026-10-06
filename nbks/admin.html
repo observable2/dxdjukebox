@@ -1,5 +1,5 @@
 <!doctype html>
-<notebook theme="air">
+<notebook theme="stark">
   <title>DxDJ_Admin</title>
   <script id="1" type="module">
     import {repo} from "./config.js";
@@ -8,7 +8,13 @@
     mountAdmin(page, repo, html);
   </script>
 
+  <script id="3" type="text/html">
+    <div style="padding: 5vw;">
+      <h3 style="color: #666;">DxD Jukebox • Admin Page</h3>
+    </div>
+  </script>
+
   <script id="2" type="text/html" output="page">
-    <div id="admin" style="width:100%;height:100%;padding:3vw;"></div>
+    <div id="admin" style="width:100%;padding:3vw;"></div>
   </script>
 </notebook>

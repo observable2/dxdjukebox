@@ -11,6 +11,10 @@
       @import url("@fontsource-variable/source-serif-4/wght-italic.css");
       @import url("@fontsource-variable/spline-sans-mono/wght.css");
       @import url("@fontsource-variable/spline-sans-mono/wght-italic.css");
+      /* padding and borders count inside an element's width/height; without this, width:100% plus padding/border overflows its container */
+      *, *::before, *::after {
+        box-sizing: border-box;
+      }
       /* force no margin even in the html tag */
       * {
         margin-top:0 !important;
@@ -23,24 +27,24 @@
         these colors are intended to show you where the elements are
         and how to configure them */
       html {
-        background-color: black;
+        /* background-color: #111111; */
         margin:0;
         padding:0; /* change this to override template default */
         border:0;
       }
       /* and edit this for body properties */
       body {
-        background-color: lightgray;
+        /* background-color: gray; */
         max-width: none;
         margin:0;
         padding:0; /* change this to override template default */
         border:0;
+        color: snow;
       }
       div {
-        background-color: white; /* change this to override template default */
       }
       main {
-        background-color: white;
+        /* background-color: red; */
         max-width: none;
         margin:0;
         padding:0; /* change this to override template default */

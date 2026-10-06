@@ -1,5 +1,5 @@
 
-import {validTime, validEnd, validDuration, validYear, validMonthDay, normalizeMonthDay, currentYear, defaultDuration, findConflict, DAYS} from "./lib.js";
+import {validTime, validEnd, validDuration, validYear, validMonthDay, normalizeMonthDay, currentYear, defaultDuration, findConflict, rotationSlots, validRotationMinutes, todayISO, DAYS} from "./lib.js";
 
 const nul = (v) => (v === "" || v === undefined ? null : v);
 const num = (v) => (v === "" || v === undefined || v === null ? null : Number(v));
@@ -9,8 +9,9 @@ const toRow = {
     year_published: num(i.yearPublished), month_day_published: nul(i.monthDayPublished),
     where_created: nul(i.whereCreated),
     publisher: nul(i.publisher), media: nul(i.media), delivery: nul(i.delivery), duration: nul(i.duration), notes: nul(i.notes),
-    course: nul(i.course), mentor: nul(i.mentor), license: nul(i.license), credits: nul(i.credits)}),
-  slot: (s) => ({item_id: s.itemId, days: s.days, start_time: s.start, end_time: s.end, weeks: s.weeks, from_date: s.from})
+    course: nul(i.course), mentor: nul(i.mentor), license: nul(i.license), credits: nul(i.credits),
+    rotation: !!i.rotation}),
+  slot: (s) => ({item_id: s.itemId, days: s.days, start_time: s.start, end_time: s.end, weeks: s.weeks, from_date: s.from, rotation: !!s.rotation})
 };
 const fromRow = {
   item: (r) => ({id: r.id, title: r.title, authorship: r.authorship ?? "", url: r.url,
@@ -18,9 +19,12 @@ const fromRow = {
     yearPublished: r.year_published == null ? "" : String(r.year_published), monthDayPublished: r.month_day_published ?? "",
     whereCreated: r.where_created ?? "",
     publisher: r.publisher ?? "", media: r.media ?? "", delivery: r.delivery ?? "", duration: r.duration ?? "", notes: r.notes ?? "",
-    course: r.course ?? "", mentor: r.mentor ?? "", license: r.license ?? "", credits: r.credits ?? ""}),
-  slot: (r) => ({id: r.id, itemId: r.item_id, days: r.days, start: r.start_time, end: r.end_time, weeks: r.weeks, from: r.from_date})
+    course: r.course ?? "", mentor: r.mentor ?? "", license: r.license ?? "", credits: r.credits ?? "",
+    rotation: !!r.rotation}),
+  slot: (r) => ({id: r.id, itemId: r.item_id, days: r.days, start: r.start_time, end: r.end_time, weeks: r.weeks, from: r.from_date, rotation: !!r.rotation})
 };
+
+const filterOf = (where) => Object.entries(where).map(([k, v]) => k + "=eq." + v).join("&") || "id=not.is.null";
 
 export function supabaseAdapter({url, anonKey}) {
   let token = null;
@@ -28,7 +32,9 @@ export function supabaseAdapter({url, anonKey}) {
   const call = async (path, opts = {}) => {
     const r = await fetch(url + "/rest/v1/" + path, {...opts, headers: headers(opts.headers)});
     if (!r.ok) throw new Error(r.status + " " + (await r.text()));
-    return r.status === 204 ? null : r.json();
+    // a successful POST/PATCH without Prefer: return=representation answers 201/200 with an empty body
+    const text = await r.text();
+    return text ? JSON.parse(text) : null;
   };
   const tbl = (t) => "jukebox_" + t + "s";
   return {
@@ -47,7 +53,11 @@ export function supabaseAdapter({url, anonKey}) {
       const body = t === "item" ? {...row, updated_at: new Date().toISOString()} : row;
       return (await call(tbl(t) + "?id=eq." + id, {method: "PATCH", headers: {Prefer: "return=representation"}, body: JSON.stringify(body)}))[0];
     },
-    async remove(t, id) { await call(tbl(t) + "?id=eq." + id, {method: "DELETE"}); }
+    async remove(t, id) { await call(tbl(t) + "?id=eq." + id, {method: "DELETE"}); },
+    // Bulk operations. "where" is {column: value}; PostgREST refuses an unfiltered delete/patch, so "every row" is id-not-null.
+    async insertMany(t, rows) { await call(tbl(t), {method: "POST", body: JSON.stringify(rows)}); },
+    async removeAll(t, where = {}) { await call(tbl(t) + "?" + filterOf(where), {method: "DELETE"}); },
+    async updateAll(t, row) { await call(tbl(t) + "?id=not.is.null", {method: "PATCH", body: JSON.stringify(row)}); }
   };
 }
 
@@ -59,6 +69,9 @@ export function localAdapter(key = "dxd-jukebox-dev") {
     async list(t) { return read()[t]; },
     async insert(t, row) { const d = read(), r = {id: crypto.randomUUID(), ...row}; d[t].push(r); write(d); return r; },
     async update(t, id, row) { const d = read(), i = d[t].findIndex((x) => x.id === id); d[t][i] = {...d[t][i], ...row}; write(d); return d[t][i]; },
+    async insertMany(t, rows) { const d = read(); d[t].push(...rows.map((r) => ({id: crypto.randomUUID(), ...r}))); write(d); },
+    async removeAll(t, where = {}) { const d = read(); d[t] = d[t].filter((x) => !Object.entries(where).every(([k, v]) => x[k] === v)); write(d); },
+    async updateAll(t, row) { const d = read(); d[t] = d[t].map((x) => ({...x, ...row})); write(d); },
     async remove(t, id) { const d = read(); d[t] = d[t].filter((x) => x.id !== id); if (t === "item") d.slot = d.slot.filter((s) => s.item_id !== id); write(d); }
   };
 }
@@ -74,6 +87,7 @@ function cleanItem(item) {
   // unchanged it must not be frozen into the record; a duration the user typed (different from it) is kept.
   if (it.durationIsDefault && it.duration === it.durationDefault) it.duration = "";
   for (const k of ["title", "url", "yearCreated", "monthDayCreated", "yearPublished", "monthDayPublished", "duration"]) it[k] = str(it[k]);
+  it.rotation = !!it.rotation;
   if (!it.title) throw new Error("Title is required");
   if (!it.url) throw new Error("URL is required");
   if (!validYear(it.yearCreated)) throw new Error("Year created is required: a four-digit year, e.g. 2024");
@@ -114,11 +128,25 @@ export function createRepo(adapter) {
       if (!(start < end)) throw new Error("End must be later than start");
       if (!days?.length) throw new Error("Choose at least one day");
       const slot = {itemId, days, start, end, weeks, from};
-      const existing = (await adapter.list("slot")).map(fromRow.slot);
+      // generated rotation slots are ignored: a manual slot overrides them, so it may sit on top of a rotation
+      const existing = (await adapter.list("slot")).map(fromRow.slot).filter((s) => !s.rotation);
       const clash = findConflict(existing, slot);
       if (clash) throw new Error("Overlaps an existing slot (" + describe(clash) + ")");
       return fromRow.slot(await adapter.insert("slot", toRow.slot(slot)));
     },
-    deleteSlot: (id) => adapter.remove("slot", id)
+    deleteSlot: (id) => adapter.remove("slot", id),
+    // Rotation: replaces any previous rotation with back-to-back slots cycling through the items flagged
+    // rotation=true. Manual slots are kept and win over rotation slots where they overlap (see pickCurrent).
+    // The old rotation slots are removed first, so a failed insert leaves no rotation.
+    async generateRotation(minutes) {
+      if (!validRotationMinutes(minutes)) throw new Error("Slot duration must be a whole number of minutes, a multiple of 5 (5-1440)");
+      const ids = (await adapter.list("item")).filter((r) => r.rotation).map((r) => r.id);
+      if (!ids.length) throw new Error("No items are flagged \"Included in Rotation\"");
+      await adapter.removeAll("slot", {rotation: true});
+      await adapter.insertMany("slot", rotationSlots(ids, minutes, todayISO()).map(toRow.slot));
+    },
+    clearRotation: () => adapter.removeAll("slot", {rotation: true}),
+    // Un-flags every item. Slots (including a generated rotation) are not touched.
+    resetRotationFlags: () => adapter.updateAll("item", {rotation: false})
   };
 }

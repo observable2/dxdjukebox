@@ -97,6 +97,16 @@
         justify-content: center;
         text-align: center;
       }
+      #site-link {
+        position: fixed;   /* fixed, not absolute: stays in the viewport corner even when the page scrolls */
+        right: 1em;
+        bottom: 0.75em;
+        font-family: var(--serif);   /* Source Serif 4, loaded in custom.tmpl */
+        font-size: 0.7em;
+      }
+      #site-link a {
+        color: #888;   /* quiet but legible; same gray as the labels above */
+      }
       /* narrow screens: no room for a side label column, so each label sits above its value */
       @media (max-width: 480px) {
         #titles {
@@ -135,5 +145,7 @@
         <dt id="credits">References<br>&amp; thanks</dt><dd id="creditsValue"></dd>
       </dl>
       <div id="message"></div>
-    </div>  </script>
+    </div>
+    <div id="site-link"><a href="https://dxdj.programmatology.com/screen">Screen</a></div>
+  </script>
 </notebook>

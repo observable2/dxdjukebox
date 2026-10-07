@@ -56,7 +56,7 @@
       if (!timing) { screenLink.textContent = "Screen"; return; }
       if (timing.pinned) { screenLink.textContent = "Showing on screen until further notice"; return; }
       const left = Math.max(0, Math.round((timing.endsAt - Date.now()) / 1000));
-      screenLink.textContent = `Showing on screen at ${formatDuration(left)}/${formatDuration(timing.length)}`;
+      screenLink.textContent = `Showing on screen for ${formatDuration(left)} of ${formatDuration(timing.length)}`;
     }
     setInterval(drawScreenLink, 1000);
 

@@ -10,7 +10,7 @@ Titles is also the site's default/landing page: its file is `nbks/index.html` (t
 
 It is built with [Observable Notebook Kit](https://observablehq.com/notebook-kit/) as a static site. The data lives in Supabase (hosted Postgres), because a static site has no server of its own.
 
-*Version 1.0.0. Last updated 6 Oct 2026.*
+*Version 1.0.1. Last updated 7 Oct 2026.*
 
 ## Layout
 
@@ -37,13 +37,14 @@ The three pages never touch the database directly. They talk to `repo` (`load`, 
 3. Put the project URL and the public anon key in `nbks/config.js`.
 4. Build the site with Notebook Kit (with `nbks` as the notebook folder) and deploy the output. The Notebook Kit version is pinned in `package.json` (2.6.6); change it deliberately, since the kit is pre-1.0 and changes quickly.
 
-**Upgrading an existing Supabase project** (one created before 1.0.0): run this once in the SQL Editor. If the API still reports a missing column, run `notify pgrst, 'reload schema';`.
+**Upgrading an existing Supabase project** (one created before 1.0.1): run this once in the SQL Editor. If the API still reports a missing column, run `notify pgrst, 'reload schema';`.
 
 ```sql
 alter table jukebox_items
   add column if not exists rotation boolean not null default false,
   add column if not exists hide_url boolean not null default false,
-  add column if not exists further_info_url text;
+  add column if not exists further_info_url text,
+  add column if not exists pinned boolean not null default false;
 alter table jukebox_slots
   add column if not exists rotation boolean not null default false;
 ```
@@ -106,6 +107,10 @@ The **Rotation** section of the Admin page fills the schedule automatically from
 - Generated slots are marked with `rotation = true` in `jukebox_slots`.
 
 - Screen and Titles poll every 20 seconds and redraw only when the current item changes, so the embedded page is not reloaded on every poll.
+
+## Show now
+
+The **Show now** section at the bottom of the Admin page picks one item to appear on Screen and Titles immediately and keep appearing until **Stop showing** is pressed. It beats every slot, manual or generated, the same way a manual slot beats the rotation. Nothing is added to or removed from the schedule, so the slots and the rotation resume as they were once it is cleared. At most one item is pinned; choosing another replaces it. The pin is the `pinned` column on `jukebox_items`, and deleting the pinned item clears it.
 
 ## Customizing the Titles page
 

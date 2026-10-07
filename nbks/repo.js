@@ -21,7 +21,7 @@ const fromRow = {
     whereCreated: r.where_created ?? "",
     publisher: r.publisher ?? "", media: r.media ?? "", delivery: r.delivery ?? "", duration: r.duration ?? "", notes: r.notes ?? "",
     course: r.course ?? "", mentor: r.mentor ?? "", license: r.license ?? "", credits: r.credits ?? "",
-    rotation: !!r.rotation,
+    rotation: !!r.rotation, pinned: !!r.pinned,   // pinned is read-only here: toRow.item leaves it alone, so saving an item never changes it
     hideURL: !!r.hide_url, furtherInfoURL: r.further_info_url ?? ""}),
   slot: (r) => ({id: r.id, itemId: r.item_id, days: r.days, start: r.start_time, end: r.end_time, weeks: r.weeks, from: r.from_date, rotation: !!r.rotation})
 };
@@ -150,6 +150,10 @@ export function createRepo(adapter) {
     },
     clearRotation: () => adapter.removeAll("slot", {rotation: true}),
     // Un-flags every item. Slots (including a generated rotation) are not touched.
-    resetRotationFlags: () => adapter.updateAll("item", {rotation: false})
+    resetRotationFlags: () => adapter.updateAll("item", {rotation: false}),
+    // Pinning: at most one item is pinned. A pinned item is what Screen and Titles show, over any slot, until unpinned.
+    // Slots and the rotation are not touched. The old pin is cleared first, so a failure leaves nothing pinned.
+    async pinItem(id) { await adapter.updateAll("item", {pinned: false}); await adapter.update("item", id, {pinned: true}); },
+    unpinItem: () => adapter.updateAll("item", {pinned: false})
   };
 }

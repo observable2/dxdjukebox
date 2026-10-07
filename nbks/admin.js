@@ -25,7 +25,7 @@ export function mountAdmin(root, repo, html) {
     root.replaceChildren(
       ...(ad.canWrite ? [] : [signIn()]),
       html`<p class="admin-msg" style="color:crimson">${st.msg}</p>`,
-      itemsPanel(), rotationPanel(), schedulePanel());
+      itemsPanel(), rotationPanel(), schedulePanel(), pinPanel());
   }
 
   function signIn() {
@@ -142,6 +142,27 @@ export function mountAdmin(root, repo, html) {
       <div>Repeat for ${weeks} weeks (0 = indefinitely), starting week of ${from} <button disabled=${ro} onclick=${add}>Add slot</button></div>
       <p style="color:#666;margin:6px 0">An item can have any number of slots. Times not covered by any slot are unscheduled: Screen and Titles show "Nothing scheduled". Slots may touch (10:00 end, 10:00 start) but not overlap each other; a manual slot may sit on top of a generated rotation and overrides it. An item with no Duration of its own uses the length of its first slot.</p>
       <table style="width:100%;margin-top:8px"><tr><th align=left>Time</th><th align=left>Item</th><th align=left>Days</th><th align=left>Span</th><th></th></tr>${rows}</table></section>`;
+  }
+
+  // Show now: one item that Screen and Titles show immediately, over every slot, until it is cleared.
+  // Slots and the rotation are left alone and take over again once it is cleared.
+  function pinPanel() {
+    const ro = !ad.canWrite, {items} = st.data;
+    const pinned = items.find((i) => i.pinned);
+    const item = html`<select>${items.map((i) => html`<option value=${i.id} selected=${i.id === (pinned?.id ?? st.pinChoice)}>${i.title}</option>`)}</select>`;
+    item.onchange = () => { st.pinChoice = item.value; };
+    const show = guard(async () => {
+      if (!item.value) throw new Error("Add an item first");
+      await repo.pinItem(item.value); await refresh();
+    });
+    const clear = guard(async () => { await repo.unpinItem(); await refresh(); });
+    return html`<section><h3>Show now</h3>
+      <div>${item} <button disabled=${ro} onclick=${show}>Show now</button>
+        <button disabled=${ro || !pinned} onclick=${clear}>Stop showing</button></div>
+      <p style="color:#666;margin:6px 0">The chosen item is shown on Screen and Titles right away and stays until you press Stop showing, taking priority over manual slots and the rotation, which are not changed and resume afterwards. Choosing another item replaces it.</p>
+      ${pinned
+        ? html`<p>Now showing: <b>${pinned.title}</b></p>`
+        : html`<p style="color:#666">No item is being shown this way.</p>`}</section>`;
   }
 
   return refresh();

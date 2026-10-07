@@ -103,8 +103,11 @@ export function slotsOverlap(a, b) {
 export const findConflict = (slots, s, ignoreId) =>
   slots.find((o) => o.id !== ignoreId && slotsOverlap(o, s)) ?? null;
 
-// Current item: the slot covering now (start <= now < end), or null when nothing is scheduled.
+// Current item: the pinned item if there is one (it beats every slot, manual or generated, until unpinned);
+// otherwise the slot covering now (start <= now < end), or null when nothing is scheduled.
 export function pickCurrent(data, now = new Date()) {
+  const pinned = data.items.find((i) => i.pinned);
+  if (pinned) return pinned;
   const hm = hhmm(now);
   const covers = (s) => slotAppliesOn(s, now) && s.start <= hm && hm < (s.end ?? "24:00");
   // a manual slot overrides a generated rotation slot covering the same time

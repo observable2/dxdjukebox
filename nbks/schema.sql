@@ -14,6 +14,8 @@ create table jukebox_items (
   rotation boolean not null default false,
   hide_url boolean not null default false,
   further_info_url text,
+  pinned boolean not null default false,   -- at most one true: shown on Screen/Titles over any slot until cleared
+                                           -- (an existing database needs: alter table jukebox_items add column pinned boolean not null default false;)
   updated_at timestamptz default now()
 );
 create table jukebox_slots (

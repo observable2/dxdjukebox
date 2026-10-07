@@ -4,8 +4,9 @@
   
   <script id="1" type="module">
     import {repo} from "./config.js";
-    import {watchCurrent, FIELDS} from "./lib.js";
+    import {watchCurrent, formatDuration, FIELDS} from "./lib.js";
 
+    const screenLink = page.querySelector("#screen-link");
     const heading = page.querySelector("#heading");
     const fields = page.querySelector("#fields");
     const message = page.querySelector("#message");
@@ -48,9 +49,22 @@
       message.style.display = "flex";
     }
 
+    // The Screen link (lower right) says how long the current item has left in its slot. The poll supplies the slot's
+    // end and length; a one-second timer does the counting down in between polls.
+    let timing = null;
+    function drawScreenLink() {
+      if (!timing) { screenLink.textContent = "Screen"; return; }
+      if (timing.pinned) { screenLink.textContent = "Showing on screen until further notice"; return; }
+      const left = Math.max(0, Math.round((timing.endsAt - Date.now()) / 1000));
+      screenLink.textContent = `Showing on screen at ${formatDuration(left)}/${formatDuration(timing.length)}`;
+    }
+    setInterval(drawScreenLink, 1000);
+
     watchCurrent(repo,
       (item) => (item ? showItem(item) : showMessage("Nothing is scheduled at this time.", false)),
-      (error) => showMessage(error, true));
+      (error) => { timing = null; drawScreenLink(); showMessage(error, true); },
+      undefined,
+      (info) => { timing = info.item ? info : null; drawScreenLink(); });
   </script>
 
   <script id="2" type="text/html" output="page">
@@ -146,6 +160,6 @@
       </dl>
       <div id="message"></div>
     </div>
-    <div id="site-link"><a href="https://dxdj.programmatology.com/screen">Screen</a></div>
+    <div id="site-link"><a id="screen-link" href="https://dxdj.programmatology.com/screen">Screen</a></div>
   </script>
 </notebook>

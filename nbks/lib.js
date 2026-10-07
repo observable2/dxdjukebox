@@ -105,23 +105,32 @@ export const findConflict = (slots, s, ignoreId) =>
 
 // Current item: the pinned item if there is one (it beats every slot, manual or generated, until unpinned);
 // otherwise the slot covering now (start <= now < end), or null when nothing is scheduled.
-export function pickCurrent(data, now = new Date()) {
+// currentInfo also says why: {item, pinned, endsAt, length} where, for a slot, endsAt is a Date and length is the
+// slot's length in seconds; a pinned item has neither (it stays until unpinned). {item: null} = nothing scheduled.
+export function currentInfo(data, now = new Date()) {
   const pinned = data.items.find((i) => i.pinned);
-  if (pinned) return pinned;
+  if (pinned) return {item: pinned, pinned: true};
   const hm = hhmm(now);
   const covers = (s) => slotAppliesOn(s, now) && s.start <= hm && hm < (s.end ?? "24:00");
   // a manual slot overrides a generated rotation slot covering the same time
   const s = data.slots.find((s) => !s.rotation && covers(s)) ?? data.slots.find(covers);
-  return s ? data.items.find((i) => i.id === s.itemId) ?? null : null;
+  const item = s ? data.items.find((i) => i.id === s.itemId) ?? null : null;
+  if (!item) return {item: null};
+  const end = minutes(s.end ?? "24:00");
+  return {item, pinned: false, endsAt: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, end), length: (end - minutes(s.start)) * 60};
 }
+export const pickCurrent = (data, now = new Date()) => currentInfo(data, now).item;
 // Polls; calls onChange(item|null) only when the current item changes; onError(message) on failure.
-export function watchCurrent(repo, onChange, onError = () => {}, ms = 20000) {
+// onInfo(currentInfo) is called on every poll (for what can change while the item stays the same, like time left).
+export function watchCurrent(repo, onChange, onError = () => {}, ms = 20000, onInfo = () => {}) {
   let last, stopped = false;
   const tick = async () => {
     try {
-      const it = pickCurrent(await repo.load(), new Date());
-      const k = JSON.stringify(it);
-      if (!stopped && k !== last) { last = k; onChange(it); }
+      const info = currentInfo(await repo.load(), new Date());
+      const k = JSON.stringify(info.item);
+      if (stopped) return;
+      onInfo(info);
+      if (k !== last) { last = k; onChange(info.item); }
     } catch (e) { if (!stopped) onError(e.message); }
   };
   tick(); const t = setInterval(tick, ms);

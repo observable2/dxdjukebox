@@ -25,10 +25,16 @@
       stopAll();
       message.style.display = "none";
       if (isVideo(item.url)) {
+        // Set as properties, not just markup attributes: a <video> built from the page template can lose its muted state,
+        // and iOS refuses to autoplay (silently, showing nothing) unless it is muted and playsInline.
+        video.muted = true;
+        video.playsInline = true;
+        video.controls = false;
         video.src = item.url;
         video.title = item.title;
         video.style.display = "block";
-        video.play().catch(() => {});   // autoplay is allowed because the video is muted; ignore a refusal
+        // autoplay is allowed because the video is muted; if a browser still refuses (e.g. iOS Low Power Mode), show controls so it can be started by hand
+        video.play().catch(() => { video.controls = true; });
       } else {
         frame.src = item.url;
         frame.title = item.title;

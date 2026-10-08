@@ -1,6 +1,6 @@
 {
   "name": "dxdjukebox",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "dependencies": {
     "@observablehq/notebook-kit": "2.6.6"

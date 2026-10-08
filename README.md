@@ -10,7 +10,7 @@ Titles is also the site's default/landing page: its file is `nbks/index.html` (t
 
 It is built with [Observable Notebook Kit](https://observablehq.com/notebook-kit/) as a static site. The data lives in Supabase (hosted Postgres), because a static site has no server of its own.
 
-*Version 1.0.2. Last updated 7 Oct 2026.*
+*Version 1.0.3. Last updated 7 Oct 2026.*
 
 ## Layout
 
@@ -116,7 +116,7 @@ The **Show now** section at the bottom of the Admin page picks one item to appea
 
 Cell 2 of `nbks/index.html` decides which fields appear and what they are called. For each field in `FIELDS`, the page looks for `<dd id="{key}Value">` (and optionally `<dt id="{key}">` holding the label). A field is shown only if its `dd` exists and the item has a value; its `dt` and `dd` are hidden otherwise. Delete a pair to leave a field out, reorder pairs freely, and write labels (and `<br>` breaks) in the markup. `url` and `furtherInfoURL` are rendered as links, and `url` is hidden when the item has Hide URL ticked. The title goes in `#heading`. The label column width is the `--label-col` variable, and the heading is aligned to the value column. Below 480px wide the labels stack above their values.
 
-The link in the lower-right corner of Titles goes to Screen. While a slot is showing it reads "Showing on screen at {time left}/{slot length}" and counts down each second (the poll supplies the slot's end; the page does the counting). For a pinned item it reads "Showing on screen until further notice", and when nothing is scheduled it just says "Screen".
+The link in the lower-right corner of Titles goes to Screen. While a slot is showing it reads "Showing on screen for {time elapsed} of {slot length}" and counts up from 0 each second (the poll supplies the slot's end; the page does the counting). For a pinned item it reads "Showing on screen until further notice", and when nothing is scheduled it just says "Screen".
 
 ## Known limits and open questions
 

@@ -49,14 +49,15 @@
       message.style.display = "flex";
     }
 
-    // The Screen link (lower right) says how long the current item has left in its slot. The poll supplies the slot's
-    // end and length; a one-second timer does the counting down in between polls.
+    // The Screen link (lower right) says how long the current item has been showing, out of its slot's length. The poll
+    // supplies the slot's end and length; a one-second timer does the counting up in between polls.
     let timing = null;
     function drawScreenLink() {
       if (!timing) { screenLink.textContent = "Screen"; return; }
       if (timing.pinned) { screenLink.textContent = "Showing on screen until further notice"; return; }
-      const left = Math.max(0, Math.round((timing.endsAt - Date.now()) / 1000));
-      screenLink.textContent = `Showing on screen for ${formatDuration(left)} of ${formatDuration(timing.length)}`;
+      // elapsed = length - time left, kept between 0 and the slot's length
+      const elapsed = Math.min(timing.length, Math.max(0, timing.length - Math.round((timing.endsAt - Date.now()) / 1000)));
+      screenLink.textContent = `Showing on screen for ${formatDuration(elapsed)} of ${formatDuration(timing.length)}`;
     }
     setInterval(drawScreenLink, 1000);
 

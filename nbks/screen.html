@@ -54,6 +54,13 @@
   </script>
   <script id="2" type="text/html" output="page">
     <style>
+      /* Each player fills the whole viewport (the embedding iframe, or the browser window), whatever its shape: no vh/vw arithmetic. */
+      #frame, #video, #message {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
       #site-link {
         position: fixed;   /* fixed, not absolute: stays in the viewport corner even when the page scrolls */
         right: 1em;
@@ -66,10 +73,10 @@
       }
     </style>
     <div>
-      <iframe id="frame" style="width:100%;height:90vh;border:0;display:none" referrerpolicy="no-referrer" allow="fullscreen; autoplay"></iframe>
+      <iframe id="frame" style="border:0;display:none" referrerpolicy="no-referrer" allow="fullscreen; autoplay"></iframe>
       <!-- muted + playsinline are what let browsers autoplay; loop repeats until the schedule moves on; contain = letterboxed, never cropped -->
-      <video id="video" autoplay muted loop playsinline style="width:100%;height:90vh;display:none;object-fit:contain;background:#000"></video>
-      <div id="message" style="width:100%;height:90vh;display:none;align-items:center;justify-content:center;text-align:center;"></div>
+      <video id="video" autoplay muted loop playsinline style="display:none;object-fit:contain;background:#000"></video>
+      <div id="message" style="display:none;align-items:center;justify-content:center;text-align:center;"></div>
     </div>
     <div id="site-link"><a href="https://dxdj.programmatology.com" target="_top">dxdj.programmatology.com</a></div>
   </script>

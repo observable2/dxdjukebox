@@ -83,6 +83,13 @@
         white-space: pre-wrap;
         overflow-wrap: anywhere;   /* long URLs and other unbroken text wrap instead of forcing horizontal scroll */
       }
+      /* dimmer values (links included), except the primary fields: authorship, yearCreated, notes (title is the heading) */
+      #titles dd:not(#authorshipValue, #yearCreatedValue, #notesValue) {
+        color: #888;
+      }
+      #titles dd:not(#authorshipValue, #yearCreatedValue, #notesValue) a {
+        color: #b39b2e;   /* dim yellow (a muted gold, so it stays legible on a light background) */
+      }
       #titles {
         /* rem, not em, so the heading (a different font size) lines up with the dd column */
         --label-col: 9rem;   /* a bit wider than the longest one-line label, "Composition media" */

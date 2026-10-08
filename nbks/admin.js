@@ -1,6 +1,6 @@
 // The Admin page. mountAdmin(root, repo, html): "html" is the htl template tag, passed in by the page.
 // Returns a promise that resolves once the first load has been drawn.
-import {FIELDS, DAYS, todayISO} from "./lib.js";
+import {FIELDS, DAYS, todayISO, stepRotation} from "./lib.js";
 
 export function mountAdmin(root, repo, html) {
   const ad = repo.adapter;
@@ -156,9 +156,19 @@ export function mountAdmin(root, repo, html) {
       await repo.pinItem(item.value); await refresh();
     });
     const clear = guard(async () => { await repo.unpinItem(); await refresh(); });
+    // Previous / Next: Show now for the neighbouring item in the rotation's cycle, starting from what is showing now.
+    const step = (dir) => guard(async () => {
+      const id = stepRotation(st.data, dir);
+      if (!id) throw new Error("There is no generated rotation to step through");
+      await repo.pinItem(id); await refresh();
+    });
     return html`<section><h3>Show now</h3>
       <div>${item} <button disabled=${ro} onclick=${show}>Show now</button>
         <button disabled=${ro || !pinned} onclick=${clear}>Stop showing</button></div>
+      <div style="margin-top:6px"><button disabled=${ro} onclick=${step(-1)}>&larr; Previous</button>
+        <button disabled=${ro} onclick=${step(1)}>Next &rarr;</button>
+        <button disabled=${ro || !pinned} onclick=${clear}>Reset to schedule</button></div>
+      <p style="color:#666;margin:6px 0">Previous and Next do a Show now for the item before or after the one showing, going around the generated rotation's cycle (an item not in the rotation steps to its first or last item). Reset to schedule is the same as Stop showing: the rotation and slots were never changed and take over again.</p>
       <p style="color:#666;margin:6px 0">The chosen item is shown on Screen and Titles right away and stays until you press Stop showing, taking priority over manual slots and the rotation, which are not changed and resume afterwards. Choosing another item replaces it.</p>
       ${pinned
         ? html`<p>Now showing: <b>${pinned.title}</b></p>`

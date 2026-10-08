@@ -10,7 +10,7 @@ Titles is also the site's default/landing page: its file is `nbks/index.html` (t
 
 It is built with [Observable Notebook Kit](https://observablehq.com/notebook-kit/) as a static site. The data lives in Supabase (hosted Postgres), because a static site has no server of its own.
 
-*Version 1.0.3. Last updated 7 Oct 2026.*
+*Version 1.0.4. Last updated 8 Oct 2026.*
 
 ## Layout
 
@@ -110,7 +110,7 @@ The **Rotation** section of the Admin page fills the schedule automatically from
 
 ## Show now
 
-The **Show now** section at the bottom of the Admin page picks one item to appear on Screen and Titles immediately and keep appearing until **Stop showing** is pressed. It beats every slot, manual or generated, the same way a manual slot beats the rotation. Nothing is added to or removed from the schedule, so the slots and the rotation resume as they were once it is cleared. At most one item is pinned; choosing another replaces it. The pin is the `pinned` column on `jukebox_items`, and deleting the pinned item clears it.
+The **Show now** section at the bottom of the Admin page picks one item to appear on Screen and Titles immediately and keep appearing until **Stop showing** is pressed. It beats every slot, manual or generated, the same way a manual slot beats the rotation. Nothing is added to or removed from the schedule, so the slots and the rotation resume as they were once it is cleared. At most one item is pinned; choosing another replaces it. **Previous** and **Next** buttons do a Show now for the item before or after the one showing, going around the generated rotation's cycle (the rotation's items in the order they appear through the day, wrapping at the ends); **Reset to schedule** clears the pin, same as Stop showing. They change nothing in the schedule. The pin is the `pinned` column on `jukebox_items`, and deleting the pinned item clears it.
 
 ## Customizing the Titles page
 

@@ -119,6 +119,20 @@ export function currentInfo(data, now = new Date()) {
   const end = minutes(s.end ?? "24:00");
   return {item, pinned: false, endsAt: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, end), length: (end - minutes(s.start)) * 60};
 }
+// The generated rotation's cycle: each item once, in the order the rotation shows them (by start time of day).
+export const rotationOrder = (slots) =>
+  [...new Set(slots.filter((s) => s.rotation).sort((a, b) => a.start.localeCompare(b.start)).map((s) => s.itemId))];
+// The item one step (+1 next, -1 previous) around the rotation from what is showing now (the pinned item if there is
+// one, else the scheduled item). If that item is not in the rotation, +1 gives its first item and -1 its last.
+// null if there is no rotation.
+export function stepRotation(data, dir, now = new Date()) {
+  const order = rotationOrder(data.slots);
+  if (!order.length) return null;
+  const shown = currentInfo(data, now).item;
+  const i = shown ? order.indexOf(shown.id) : -1;
+  const k = i < 0 ? (dir > 0 ? 0 : order.length - 1) : (i + dir + order.length) % order.length;
+  return order[k];
+}
 export const pickCurrent = (data, now = new Date()) => currentInfo(data, now).item;
 // Polls; calls onChange(item|null) only when the current item changes; onError(message) on failure.
 // onInfo(currentInfo) is called on every poll (for what can change while the item stays the same, like time left).

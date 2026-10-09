@@ -156,6 +156,10 @@ export function mountAdmin(root, repo, html) {
       await repo.pinItem(item.value); await refresh();
     });
     const clear = guard(async () => { await repo.unpinItem(); await refresh(); });
+    // Reset to schedule: clears every pin in the database (not just the one this page last loaded, which may be stale if
+    // Show now was set from another tab or session) and forgets the dropdown's remembered choice, then reloads.
+    // Always enabled, so it can be pressed even when this page does not think anything is pinned.
+    const reset = guard(async () => { await repo.unpinItem(); st.pinChoice = undefined; await refresh(); });
     // Previous / Next: Show now for the neighbouring item in the rotation's cycle, starting from what is showing now.
     const step = (dir) => guard(async () => {
       const id = stepRotation(st.data, dir);
@@ -167,8 +171,8 @@ export function mountAdmin(root, repo, html) {
         <button disabled=${ro || !pinned} onclick=${clear}>Stop showing</button></div>
       <div style="margin-top:6px"><button disabled=${ro} onclick=${step(-1)}>&larr; Previous</button>
         <button disabled=${ro} onclick=${step(1)}>Next &rarr;</button>
-        <button disabled=${ro || !pinned} onclick=${clear}>Reset to schedule</button></div>
-      <p style="color:#666;margin:6px 0">Previous and Next do a Show now for the item before or after the one showing, going around the generated rotation's cycle (an item not in the rotation steps to its first or last item). Reset to schedule is the same as Stop showing: the rotation and slots were never changed and take over again.</p>
+        <button disabled=${ro} onclick=${reset}>Reset to schedule</button></div>
+      <p style="color:#666;margin:6px 0">Previous and Next do a Show now for the item before or after the one showing, going around the generated rotation's cycle (an item not in the rotation steps to its first or last item). Reset to schedule clears any Show now setting, however it was made (even one this page has not loaded yet), and forgets the dropdown's choice; the rotation and slots were never changed and take over again.</p>
       <p style="color:#666;margin:6px 0">The chosen item is shown on Screen and Titles right away and stays until you press Stop showing, taking priority over manual slots and the rotation, which are not changed and resume afterwards. Choosing another item replaces it.</p>
       ${pinned
         ? html`<p>Now showing: <b>${pinned.title}</b></p>`

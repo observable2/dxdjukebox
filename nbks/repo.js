@@ -33,6 +33,12 @@ export function supabaseAdapter({url, anonKey}) {
   const headers = (extra) => ({apikey: anonKey, Authorization: "Bearer " + (token ?? anonKey), "Content-Type": "application/json", ...extra});
   const call = async (path, opts = {}) => {
     const r = await fetch(url + "/rest/v1/" + path, {...opts, headers: headers(opts.headers)});
+    if (r.status === 401) {
+      // The sign-in has expired (or was never made). Forget the dead token so the Admin page offers its sign-in form again;
+      // the page keeps the record being edited, so signing in and repeating the action loses nothing.
+      token = null;
+      throw new Error("Your sign-in has expired. Sign in again at the top of the page, then repeat what you were doing; anything you had typed is kept.");
+    }
     if (!r.ok) throw new Error(r.status + " " + (await r.text()));
     // a successful POST/PATCH without Prefer: return=representation answers 201/200 with an empty body
     const text = await r.text();

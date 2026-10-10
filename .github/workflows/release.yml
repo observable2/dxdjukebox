@@ -1,0 +1,22 @@
+name: Release
+
+# Runs when a version tag such as v1.0.5 is pushed.
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "DxD Jukebox ${GITHUB_REF_NAME#v}" \
+            --generate-notes

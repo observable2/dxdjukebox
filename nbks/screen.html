@@ -3,7 +3,7 @@
   <title>DxDJ</title>
   <script id="1" type="module" hidden="">
     import {repo} from "./config.js";
-    import {watchCurrent} from "./lib.js";
+    import {watchCurrent, screenRefFromURL} from "./lib.js";
 
     const frame = page.querySelector("#frame");
     const video = page.querySelector("#video");
@@ -56,7 +56,8 @@
 
     watchCurrent(repo,
       (item) => (item ? showItem(item) : showMessage("The DxD Jukebox “Screen” • Nothing is scheduled at this time.", false)),
-      (error) => showMessage(error, true));
+      (error) => showMessage(error, true),
+      undefined, undefined, screenRefFromURL());   // ?s=2 or ?s=lobby picks the screen; none = the lowest-numbered
   </script>
   <script id="2" type="text/html" output="page">
     <style>

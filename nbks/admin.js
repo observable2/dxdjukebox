@@ -1,11 +1,13 @@
 // The Admin page. mountAdmin(root, repo, html): "html" is the htl template tag, passed in by the page.
 // Returns a promise that resolves once the first load has been drawn.
-import {FIELDS, DAYS, todayISO, stepRotation} from "./lib.js";
+import {FIELDS, DAYS, todayISO, stepRotation, onScreen} from "./lib.js";
 
 export function mountAdmin(root, repo, html) {
   const ad = repo.adapter;
   const st = {
-    data: {items: [], slots: []},
+    data: {items: [], slots: [], screens: [], screen: null, pinnedItemId: null},
+    screenRef: undefined,              // number of the screen the schedule, rotation and Show now panels work on (undefined = lowest)
+    editingScreen: {},                 // the screen in the screens form ({} = a new one)
     editing: {},                       // the item in the form ({} = a new one)
     slot: {itemId: "", days: [], start: "09:00", end: "10:00", weeks: 1, from: todayISO()},   // the slot form, kept between redraws
     search: "",                        // items-table filter text, kept between redraws
@@ -14,7 +16,14 @@ export function mountAdmin(root, repo, html) {
   };
 
   async function refresh() {
-    try { st.data = await repo.load(); st.msg = ""; } catch (e) { st.msg = e.message; }
+    try {
+      try { st.data = await repo.load(st.screenRef); }
+      catch (e) {   // the chosen screen no longer exists (deleted, or renumbered): go back to the lowest-numbered one
+        if (e.code !== "no-screen" || st.screenRef === undefined) throw e;
+        st.screenRef = undefined; st.data = await repo.load();
+      }
+      st.screenRef = st.data.screen.number; st.msg = "";
+    } catch (e) { st.msg = e.message; }
     render();
   }
   // Wraps an action: an error is shown at the top of the page instead of being lost.
@@ -25,7 +34,7 @@ export function mountAdmin(root, repo, html) {
     root.replaceChildren(
       ...(ad.canWrite ? [] : [signIn()]),
       html`<p class="admin-msg" style="color:crimson">${st.msg}</p>`,
-      itemsPanel(), rotationPanel(), schedulePanel(), pinPanel());
+      screensPanel(), itemsPanel(), rotationPanel(), schedulePanel(), pinPanel());
   }
 
   function signIn() {
@@ -34,6 +43,46 @@ export function mountAdmin(root, repo, html) {
     return html`<form onsubmit=${guard(async (e) => {
       e.preventDefault(); await ad.signIn(email.value, pw.value); await refresh();
     })}><b>Admin sign-in</b> ${email} ${pw} <button>Sign in</button> <small>(read-only until signed in)</small></form>`;
+  }
+
+  // " · screen 2 (lobby)": added to the headings of the panels that work on one screen
+  const screenTitle = () => st.data.screen ? " · screen " + st.data.screen.number + " (" + st.data.screen.slug + ")" : "";
+
+  // Screens: the picker chooses which screen the Rotation, Schedule and Show now panels work on (Items are shared by all
+  // screens). The URLs to embed are shown for the chosen screen; "Manage screens" adds, renames and deletes screens.
+  function screensPanel() {
+    const ro = !ad.canWrite, {screens, screen} = st.data, ed = st.editingScreen, inputs = {};
+    const pick = html`<select>${screens.map((s) => html`<option value=${s.number} selected=${s.id === screen?.id}>${s.number} · ${s.slug}${s.name ? " · " + s.name : ""}</option>`)}</select>`;
+    pick.onchange = () => { st.screenRef = +pick.value; st.msg = ""; refresh(); };
+    const q = screen ? "?s=" + encodeURIComponent(screen.slug) : "";
+    const screenURL = new URL("screen", location.href).href + q, titlesURL = new URL("./", location.href).href + q;
+    const field = (key, label, el) => { inputs[key] = el; Object.assign(el, {disabled: ro, value: ed[key] ?? ""}); return html`<label>${label} ${el}</label>`; };
+    const number = field("number", "Number", html`<input type=number min=1 required style="width:5em">`);
+    const slug = field("slug", "Slug", html`<input pattern=${"[a-z][a-z0-9\\-]*"} title="lowercase letters, digits and hyphens, starting with a letter" required size=12>`);
+    const name = field("name", "Name", html`<input size=20>`);
+    const form = html`<form style="margin-top:6px">${number} ${slug} ${name}
+      <button disabled=${ro}>${ed.id ? "Update screen" : "Add screen"}</button>
+      <button type=button onclick=${() => { st.editingScreen = {}; st.msg = ""; render(); }}>Clear</button></form>`;
+    form.onsubmit = guard(async (e) => {
+      e.preventDefault();
+      st.editingScreen = {...ed, number: inputs.number.value, slug: inputs.slug.value, name: inputs.name.value};   // keep what was typed if saving fails
+      await repo.saveScreen(st.editingScreen);
+      st.editingScreen = {};
+      await refresh();
+    });
+    const row = (s) => html`<tr><td>${s.number}</td><td>${s.slug}</td><td>${s.name}</td>
+      <td><button onclick=${() => { st.editingScreen = s; st.msg = ""; render(); }}>Edit</button>
+        <button disabled=${ro} onclick=${guard(async () => {
+          if (!confirm("Delete screen " + s.number + " (" + s.slug + ") and its slots? Items are kept.")) return;
+          await repo.deleteScreen(s.id); await refresh();
+        })}>Delete</button></td></tr>`;
+    return html`<section><h3>Screen</h3>
+      <div>Working on ${pick}
+        <small style="color:#666">Rotation, Schedule and Show now below apply to this screen; Items are shared by all screens.</small></div>
+      <div style="margin-top:6px"><small style="color:#666;overflow-wrap:anywhere">Screen: <a href=${screenURL} target=_blank>${screenURL}</a><br>Titles: <a href=${titlesURL} target=_blank>${titlesURL}</a></small></div>
+      <details style="margin-top:6px"><summary>Manage screens (${screens.length})</summary>${form}
+        <p style="color:#666;margin:6px 0">A screen has a number and a slug, each unique. An item's Screens text (for rotation) can use numbers, ranges and slugs: <code>2, 7-10, lobby</code>. A page with no <code>?s=</code> shows the lowest-numbered screen. Deleting a screen deletes its slots.</p>
+        <table style="width:100%"><tr><th align=left>Number</th><th align=left>Slug</th><th align=left>Name</th><th></th></tr>${screens.map(row)}</table></details></section>`;
   }
 
   function itemsPanel() {
@@ -90,9 +139,10 @@ export function mountAdmin(root, repo, html) {
   }
 
   function rotationPanel() {
-    const ro = !ad.canWrite, {items, slots} = st.data;
+    const ro = !ad.canWrite, {items, slots, screens, screen} = st.data;
     const generated = slots.filter((s) => s.rotation);
-    const flagged = items.filter((i) => i.rotation);
+    const slugs = Object.fromEntries(screens.map((s) => [s.slug, s.number]));
+    const flagged = items.filter((i) => i.rotation && (!screen || onScreen(i.screens, screen.number, slugs)));
     const mins = (s) => (+s.end.slice(0, 2) * 60 + +s.end.slice(3)) - (+s.start.slice(0, 2) * 60 + +s.start.slice(3));
     const minutes = html`<input type=number min=5 step=5 value=${st.rotMinutes} style="width:5em">`;
     minutes.oninput = () => { st.rotMinutes = +minutes.value; };
@@ -100,26 +150,26 @@ export function mountAdmin(root, repo, html) {
     const inRotation = items.filter((i) => generated.some((s) => s.itemId === i.id))
       .map((i) => ({title: i.title, len: Math.max(...generated.filter((s) => s.itemId === i.id).map(mins))}));
     const generate = guard(async () => {
-      await repo.generateRotation(st.rotMinutes); await refresh();
+      await repo.generateRotation(st.rotMinutes, screen?.id); await refresh();
     });
-    const clear = guard(async () => { await repo.clearRotation(); await refresh(); });
+    const clear = guard(async () => { await repo.clearRotation(screen?.id); await refresh(); });
     const reset = guard(async () => {
       if (!confirm("Set \"Included in Rotation\" to false for ALL items? (An existing rotation's slots are not touched.)")) return;
       await repo.resetRotationFlags(); await refresh();
     });
-    return html`<section><h3>Rotation</h3>
+    return html`<section><h3>Rotation${screenTitle()}</h3>
       <div>Slot duration ${minutes} minutes
         <button disabled=${ro} onclick=${generate}>Generate rotation</button>
         <button disabled=${ro} onclick=${clear}>Clear rotation</button>
         <button disabled=${ro} onclick=${reset}>Set all items' rotation to false</button></div>
-      <p style="color:#666;margin:6px 0">Generate rotation fills every day with back-to-back slots cycling through the ${flagged.length} item${flagged.length === 1 ? "" : "s"} flagged Included in Rotation (the cycle restarts at midnight), replacing any previous rotation. Manual slots are kept and take priority over the rotation while they apply; an item whose turn falls under a manual slot is skipped for that time. Clear rotation removes only the generated slots; item flags are kept.</p>
+      <p style="color:#666;margin:6px 0">Generate rotation fills every day with back-to-back slots cycling through the ${flagged.length} item${flagged.length === 1 ? "" : "s"} flagged Included in Rotation whose Screens text includes this screen (blank = every screen; the cycle restarts at midnight), replacing this screen's previous rotation. Manual slots are kept and take priority over the rotation while they apply; an item whose turn falls under a manual slot is skipped for that time. Clear rotation removes only this screen's generated slots; item flags are kept.</p>
       ${inRotation.length
         ? html`<table style="width:100%"><tr><th align=left>Item in rotation</th><th align=left>Slot duration</th></tr>${inRotation.map((r) => html`<tr><td>${r.title}</td><td>${r.len} min</td></tr>`)}</table>`
         : html`<p style="color:#666">No rotation is currently scheduled.</p>`}</section>`;
   }
 
   function schedulePanel() {
-    const ro = !ad.canWrite, {items, slots} = st.data, sf = st.slot;
+    const ro = !ad.canWrite, {items, slots, screen} = st.data, sf = st.slot;
     const item = html`<select>${items.map((i) => html`<option value=${i.id} selected=${i.id === sf.itemId}>${i.title}${i.duration ? " (" + i.duration + ")" : ""}</option>`)}</select>`;
     const days = DAYS.map((d, i) => html`<label style="margin-right:6px"><input type=checkbox value=${i} checked=${sf.days.includes(i)}> ${d}</label>`);
     const start = html`<input type=time step=300 value=${sf.start}>`;
@@ -131,7 +181,7 @@ export function mountAdmin(root, repo, html) {
       const ds = days.map((l) => l.querySelector("input")).filter((c) => c.checked).map((c) => +c.value);
       Object.assign(st.slot, {itemId: item.value, days: ds, start: start.value, end: end.value, weeks: +weeks.value, from: from.value});
       if (!item.value) throw new Error("Add an item first");
-      await repo.addSlot({itemId: item.value, days: ds, start: start.value, end: end.value, weeks: +weeks.value, from: from.value});
+      await repo.addSlot({screenId: screen?.id, itemId: item.value, days: ds, start: start.value, end: end.value, weeks: +weeks.value, from: from.value});
       await refresh();
     });
     const rows = slots.filter((s) => !s.rotation).sort((a, b) => a.start.localeCompare(b.start)).map((s) => html`<tr>
@@ -139,36 +189,36 @@ export function mountAdmin(root, repo, html) {
       <td>${s.days.map((d) => DAYS[d]).join(" ")}</td>
       <td>${s.weeks ? s.weeks + " wk from " : "every week from "}${s.from}</td>
       <td><button disabled=${ro} onclick=${guard(async () => { await repo.deleteSlot(s.id); await refresh(); })}>Remove</button></td></tr>`);
-    return html`<section><h3>Schedule (manual slots; a generated rotation is summarized above)</h3>
+    return html`<section><h3>Schedule${screenTitle()} (manual slots; a generated rotation is summarized above)</h3>
       <div>${item} from ${start} until ${end} on ${days}</div>
       <div>Repeat for ${weeks} weeks (0 = indefinitely), starting week of ${from} <button disabled=${ro} onclick=${add}>Add slot</button></div>
-      <p style="color:#666;margin:6px 0">An item can have any number of slots. Times not covered by any slot are unscheduled: Screen and Titles show "Nothing scheduled". Slots may touch (10:00 end, 10:00 start) but not overlap each other; a manual slot may sit on top of a generated rotation and overrides it. An item with no Duration of its own uses the length of its first slot.</p>
+      <p style="color:#666;margin:6px 0">An item can have any number of slots. Times not covered by any slot are unscheduled: Screen and Titles show "Nothing scheduled". Slots may touch (10:00 end, 10:00 start) but not overlap each other on the same screen (screens are independent); a manual slot may sit on top of a generated rotation and overrides it. An item with no Duration of its own uses the length of its first slot.</p>
       <table style="width:100%;margin-top:8px"><tr><th align=left>Time</th><th align=left>Item</th><th align=left>Days</th><th align=left>Span</th><th></th></tr>${rows}</table></section>`;
   }
 
   // Show now: one item that Screen and Titles show immediately, over every slot, until it is cleared.
   // Slots and the rotation are left alone and take over again once it is cleared.
   function pinPanel() {
-    const ro = !ad.canWrite, {items} = st.data;
-    const pinned = items.find((i) => i.pinned);
+    const ro = !ad.canWrite, {items, screen} = st.data;
+    const pinned = items.find((i) => i.id === st.data.pinnedItemId);
     const item = html`<select>${items.map((i) => html`<option value=${i.id} selected=${i.id === (pinned?.id ?? st.pinChoice)}>${i.title}</option>`)}</select>`;
     item.onchange = () => { st.pinChoice = item.value; };
     const show = guard(async () => {
       if (!item.value) throw new Error("Add an item first");
-      await repo.pinItem(item.value); await refresh();
+      await repo.pinItem(screen?.id, item.value); await refresh();
     });
-    const clear = guard(async () => { await repo.unpinItem(); await refresh(); });
-    // Reset to schedule: clears every pin in the database (not just the one this page last loaded, which may be stale if
+    const clear = guard(async () => { await repo.unpinItem(screen?.id); await refresh(); });
+    // Reset to schedule: clears this screen's pin in the database (not just the one this page last loaded, which may be stale if
     // Show now was set from another tab or session) and forgets the dropdown's remembered choice, then reloads.
     // Always enabled, so it can be pressed even when this page does not think anything is pinned.
-    const reset = guard(async () => { await repo.unpinItem(); st.pinChoice = undefined; await refresh(); });
+    const reset = guard(async () => { await repo.unpinItem(screen?.id); st.pinChoice = undefined; await refresh(); });
     // Previous / Next: Show now for the neighbouring item in the rotation's cycle, starting from what is showing now.
     const step = (dir) => guard(async () => {
       const id = stepRotation(st.data, dir);
       if (!id) throw new Error("There is no generated rotation to step through");
-      await repo.pinItem(id); await refresh();
+      await repo.pinItem(screen?.id, id); await refresh();
     });
-    return html`<section><h3>Show now</h3>
+    return html`<section><h3>Show now${screenTitle()}</h3>
       <div>${item} <button disabled=${ro} onclick=${show}>Show now</button>
         <button disabled=${ro || !pinned} onclick=${clear}>Stop showing</button></div>
       <div style="margin-top:6px"><button disabled=${ro} onclick=${step(-1)}>&larr; Previous</button>

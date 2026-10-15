@@ -28,7 +28,7 @@ dxdjukebox/
    └─ schema.sql     Supabase tables and security policies
 ```
 
-The three pages never touch the database directly. They talk to `repo` (`load`, `saveItem`, `deleteItem`, `addSlot`, `deleteSlot`, `generateRotation`, `clearRotation`, `resetRotationFlags`), so the backend can be swapped without changing them.
+The three pages never touch the database directly. They talk to `repo` (`load`, `saveItem`, `deleteItem`, `saveScreen`, `deleteScreen`, `addSlot`, `deleteSlot`, `generateRotation`, `clearRotation`, `resetRotationFlags`, `pinItem`, `unpinItem`), so the backend can be swapped without changing them.
 
 ## Setup
 
@@ -77,6 +77,7 @@ Security comes from row-level security in `schema.sql`: anyone can read, and onl
 | License | no | |
 | Credits | no | |
 | Included in Rotation | no | checkbox (default off, key `rotation`); items ticked here are cycled by **Generate rotation** |
+| Screens | no | key `screens`; which screens a rotation may use this item on: screen numbers, ranges and slugs separated by commas, e.g. `2, 7-10, lobby`. Blank means every screen. Only the rotation looks at it; manual slots and Show now can use any item on any screen |
 
 Only Title, URL and Year created are required.
 
@@ -88,18 +89,27 @@ On the Admin page, each form label shows the field's key in parentheses (these k
 
 ## Scheduling
 
-- An item has any number of **slots**. A slot belongs to exactly one item. Deleting an item deletes its slots.
+- An item has any number of **slots**. A slot belongs to exactly one item and exactly one screen. Deleting an item deletes its slots.
 - A slot is: item, weekdays, start time, end time, a number of weeks (0 = indefinitely) and a start date (the span counts weeks from the week containing that date).
 - Times are in 5-minute steps. A slot covers `[start, end)`, the end must be later than the start, and `24:00` is allowed as an end.
-- **Slots may not overlap**, but unscheduled time is allowed. Two slots conflict only if they share a time of day **and** there is a real calendar date on which both apply (weekdays, start date and number of weeks are all considered). Back-to-back slots (one ends at 10:00, the next starts at 10:00) are fine.
+- **Slots may not overlap on the same screen** (screens are independent), but unscheduled time is allowed. Two slots conflict only if they share a time of day **and** there is a real calendar date on which both apply (weekdays, start date and number of weeks are all considered). Back-to-back slots (one ends at 10:00, the next starts at 10:00) are fine.
 - Times outside every slot are unscheduled: Screen and Titles show "Nothing scheduled right now."
+## Screens
+
+One installation can run any number of screens, each with its own schedule, rotation and Show now. **Items are shared**: add an item once and use it on any screen.
+
+- A screen has a **number** (1, 2, 3, ...) and a **slug** (lowercase letters, digits and hyphens, starting with a letter, e.g. `lobby`), each unique, and an optional name. The first screen is `1` / `main`.
+- A page names its screen with `?s=` in its URL: `/screen?s=2`, `/screen?s=lobby`, `/?s=lobby` (Titles). With no `?s=` the lowest-numbered screen is shown, so existing embeds keep working. The Screen link on Titles goes to the same screen.
+- On the Admin page, the **Screen** section at the top picks which screen the Rotation, Schedule and Show now sections work on, and shows the Screen and Titles URLs for it. **Manage screens** adds, renames and deletes screens. Deleting a screen deletes its slots (items are kept); the last screen cannot be deleted.
+- An item's **Screens** text (see Items) uses numbers, ranges and slugs: `2, 7-10, lobby` means screens 2, 7, 8, 9, 10 and `lobby`. A number or range may name screens that do not exist yet. A slug must exist when the item is saved; if the screen is later deleted or renamed, the slug is simply ignored by the rotation.
+
 ## Rotation
 
-The **Rotation** section of the Admin page fills the schedule automatically from the items ticked "Included in Rotation".
+The **Rotation** section of the Admin page fills the chosen screen's schedule automatically from the items ticked "Included in Rotation" whose Screens text includes that screen (or is blank).
 
 - **Slot duration** (default 10 minutes; whole minutes in multiples of 5).
-- **Generate rotation** removes the previous rotation and creates back-to-back slots for every day, 00:00 to 24:00, repeating weekly with no end date from today. They cycle through the flagged items in title order, and the cycle restarts at midnight. If the duration does not divide the day evenly, the last slot of the day is shorter. It needs at least one flagged item.
-- **Clear rotation** removes only the generated slots. The items' flags are left alone.
+- **Generate rotation** removes the chosen screen's previous rotation (other screens' are untouched) and creates back-to-back slots for every day, 00:00 to 24:00, repeating weekly with no end date from today. They cycle through the flagged items in title order, and the cycle restarts at midnight. If the duration does not divide the day evenly, the last slot of the day is shorter. It needs at least one flagged item.
+- **Clear rotation** removes only the chosen screen's generated slots. The items' flags are left alone.
 - **Set all items' rotation to false** un-ticks every item (after confirmation) without touching any slots.
 - The section lists the items in the generated rotation with their slot length, not the slots themselves. The Schedule section lists manual slots only.
 - **Manual slots win.** Where a manual slot and a rotation slot cover the same time, the manual slot is shown, and when the manual slot ends (or its weeks run out) the rotation resumes. Manual slots may be added over a running rotation. The rotation does not shift around them: an item whose turn is covered by a manual slot is simply skipped for that time.
@@ -109,13 +119,15 @@ The **Rotation** section of the Admin page fills the schedule automatically from
 
 ## Show now
 
-The **Show now** section at the bottom of the Admin page picks one item to appear on Screen and Titles immediately and keep appearing until **Stop showing** is pressed. It beats every slot, manual or generated, the same way a manual slot beats the rotation. Nothing is added to or removed from the schedule, so the slots and the rotation resume as they were once it is cleared. At most one item is pinned; choosing another replaces it. **Previous** and **Next** buttons do a Show now for the item before or after the one showing, going around the generated rotation's cycle (the rotation's items in the order they appear through the day, wrapping at the ends); **Reset to schedule** clears the pin, same as Stop showing. They change nothing in the schedule. The pin is the `pinned` column on `jukebox_items`, and deleting the pinned item clears it.
+The **Show now** section at the bottom of the Admin page picks one item to appear on the chosen screen's Screen and Titles immediately and keep appearing until **Stop showing** is pressed. It beats every slot, manual or generated, the same way a manual slot beats the rotation. Nothing is added to or removed from the schedule, so the slots and the rotation resume as they were once it is cleared. At most one item is pinned per screen; choosing another replaces it. **Previous** and **Next** buttons do a Show now for the item before or after the one showing, going around the generated rotation's cycle (the rotation's items in the order they appear through the day, wrapping at the ends); **Reset to schedule** clears the pin, same as Stop showing. They change nothing in the schedule. The pin is the `pinned_item_id` column on `jukebox_screens`, and deleting the pinned item clears it.
 
 ## Customizing the Titles page
 
 Cell 2 of `nbks/index.html` decides which fields appear and what they are called. For each field in `FIELDS`, the page looks for `<dd id="{key}Value">` (and optionally `<dt id="{key}">` holding the label). A field is shown only if its `dd` exists and the item has a value; its `dt` and `dd` are hidden otherwise. Delete a pair to leave a field out, reorder pairs freely, and write labels (and `<br>` breaks) in the markup. `url` and `furtherInfoURL` are rendered as links, and `url` is hidden when the item has Hide URL ticked. The title goes in `#heading`. The label column width is the `--label-col` variable, and the heading is aligned to the value column. Below 480px wide the labels stack above their values.
 
 The link in the lower-right corner of Titles goes to Screen. While a slot is showing it reads "Showing on screen for {time elapsed} of {slot length}" and counts up from 0 each second (the poll supplies the slot's end; the page does the counting). For a pinned item it reads "Showing on screen until further notice", and when nothing is scheduled it just says "Screen".
+
+**Upgrading a project made before screens:** the Supabase tables need a new `jukebox_screens` table, a `screen_id` on slots and a `screens` column on items, and the old `pinned` column on items goes away. The commented migration block at the end of `nbks/schema.sql` does all of it in one run (existing slots go to a new screen 1, `main`).
 
 ## Known limits and open questions
 

@@ -44,7 +44,45 @@ export const FIELDS = [
   {key:"notes",label:"Notes",type:"textarea"},{key:"furtherInfoURL",label:"Further info URL",type:"url"},
   {key:"course",label:"Course"},{key:"mentor",label:"Mentor"},{key:"license",label:"License"},
   {key:"credits",label:"Credits",type:"textarea"},
-  {key:"rotation",label:"Included in Rotation",type:"checkbox"}];
+  {key:"rotation",label:"Included in Rotation",type:"checkbox"},
+  {key:"screens",label:"Screens",placeholder:"rotation only; blank = every screen; e.g. 2, 7-10, lobby"}];
+
+// Screens: each has a number (1, 2, 3...) and a slug (lowercase, starts with a letter, e.g. "lobby"), so a slug can never be
+// mistaken for a number or a range. A screen is named in a URL (?s=2 or ?s=lobby) and in an item's Screens text.
+export const SLUG_PATTERN = "[a-z][a-z0-9-]*";
+export const validSlug = (t) => new RegExp("^" + SLUG_PATTERN + "$").test(t ?? "");
+export const screenRefFromURL = (search = location.search) => new URLSearchParams(search).get("s") || undefined;
+// The screen a reference ("2", "lobby", or none = the lowest-numbered screen) names, or undefined.
+export function findScreen(screens, ref) {
+  const sorted = [...screens].sort((a, b) => a.number - b.number);
+  const r = String(ref ?? "").trim().toLowerCase();
+  if (!r) return sorted[0];
+  return /^\d+$/.test(r) ? sorted.find((s) => s.number === +r) : sorted.find((s) => s.slug === r);
+}
+// An item's Screens text, e.g. "2, 7-10, lobby" -> [[2,2],[7,10],[lobby's number, same]]. Blank -> null, meaning every screen.
+// slugs maps slug -> number. An unknown slug is an error unless strict is false (then it is ignored).
+export function parseScreens(text, slugs = {}, strict = true) {
+  const ranges = [];
+  for (const raw of String(text ?? "").split(",")) {
+    const tok = raw.trim().toLowerCase();
+    if (!tok) continue;
+    let m;
+    if ((m = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(tok))) {
+      const lo = +m[1], hi = m[2] === undefined ? lo : +m[2];
+      if (lo < 1 || hi < lo) throw new Error('Screens: "' + raw.trim() + '" is not a valid number or range (screens start at 1; a range runs low-high)');
+      ranges.push([lo, hi]);
+    } else if (validSlug(tok)) {
+      if (tok in slugs) ranges.push([slugs[tok], slugs[tok]]);
+      else if (strict) throw new Error('Screens: there is no screen with the slug "' + tok + '"');
+    } else throw new Error('Screens: cannot read "' + raw.trim() + '"; use screen numbers, ranges like 7-10, or slugs, separated by commas');
+  }
+  return ranges.length ? ranges : null;
+}
+// Does an item's Screens text include this screen number? (blank = yes)
+export const onScreen = (text, number, slugs) => {
+  const ranges = parseScreens(text, slugs, false);
+  return !ranges || ranges.some(([lo, hi]) => lo <= number && number <= hi);
+};
 
 // Start times: 00:00-23:55 in 5-minute steps. End times: 00:05-24:00 (24:00 = midnight at end of day).
 export const validTime = (t) => /^([01][0-9]|2[0-3]):[0-5][05]$/.test(t);
@@ -110,7 +148,7 @@ export const findConflict = (slots, s, ignoreId) =>
 // currentInfo also says why: {item, pinned, endsAt, length} where, for a slot, endsAt is a Date and length is the
 // slot's length in seconds; a pinned item has neither (it stays until unpinned). {item: null} = nothing scheduled.
 export function currentInfo(data, now = new Date()) {
-  const pinned = data.items.find((i) => i.pinned);
+  const pinned = data.items.find((i) => i.id === data.pinnedItemId);
   if (pinned) return {item: pinned, pinned: true};
   const hm = hhmm(now);
   const covers = (s) => slotAppliesOn(s, now) && s.start <= hm && hm < (s.end ?? "24:00");
@@ -137,12 +175,13 @@ export function stepRotation(data, dir, now = new Date()) {
 }
 export const pickCurrent = (data, now = new Date()) => currentInfo(data, now).item;
 // Polls; calls onChange(item|null) only when the current item changes; onError(message) on failure.
+// screenRef names the screen (number or slug; undefined = the lowest-numbered screen).
 // onInfo(currentInfo) is called on every poll (for what can change while the item stays the same, like time left).
-export function watchCurrent(repo, onChange, onError = () => {}, ms = 20000, onInfo = () => {}) {
+export function watchCurrent(repo, onChange, onError = () => {}, ms = 20000, onInfo = () => {}, screenRef) {
   let last, stopped = false;
   const tick = async () => {
     try {
-      const info = currentInfo(await repo.load(), new Date());
+      const info = currentInfo(await repo.load(screenRef), new Date());
       const k = JSON.stringify(info.item);
       if (stopped) return;
       onInfo(info);

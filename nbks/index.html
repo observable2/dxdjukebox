@@ -4,12 +4,20 @@
   
   <script id="1" type="module">
     import {repo} from "./config.js";
-    import {watchCurrent, formatDuration, FIELDS} from "./lib.js";
+    import {watchCurrent, formatDuration, screenRefFromURL, FIELDS} from "./lib.js";
 
     const screenLink = page.querySelector("#screen-link");
     const heading = page.querySelector("#heading");
     const fields = page.querySelector("#fields");
     const message = page.querySelector("#message");
+
+    // ?s=2 or ?s=lobby picks the screen (none = the lowest-numbered); the Screen link goes to the same one
+    const screenRef = screenRefFromURL();
+    if (screenRef) {
+      const url = new URL(screenLink.href);
+      url.searchParams.set("s", screenRef);
+      screenLink.href = url.href;
+    }
 
     const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     // yearCreated shows as "14 March 2024" when monthDayCreated (stored as "M/D") is set, otherwise just the year
@@ -85,7 +93,8 @@
       (item) => (item ? showItem(item) : showMessage("Nothing is scheduled at this time.", false)),
       (error) => { timing = null; drawScreenLink(); showMessage(error, true); },
       undefined,
-      (info) => { timing = info.item ? info : null; drawScreenLink(); });
+      (info) => { timing = info.item ? info : null; drawScreenLink(); },
+      screenRef);
   </script>
 
   <script id="2" type="text/html" output="page">

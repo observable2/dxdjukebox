@@ -17,12 +17,20 @@ create table jukebox_items (
   rotation boolean not null default false,
   hide_url boolean not null default false,
   further_info_url text,
-  pinned boolean not null default false,   -- at most one true: shown on Screen/Titles over any slot until cleared
-                                           -- (an existing database needs: alter table jukebox_items add column pinned boolean not null default false;)
+  screens text,   -- which screens a rotation may use this item on: numbers, ranges, slugs (2, 7-10, lobby); blank = every screen
   updated_at timestamptz default now()
 );
+create table jukebox_screens (
+  id uuid primary key default gen_random_uuid(),
+  number int not null unique check (number >= 1),
+  slug text not null unique check (slug ~ '^[a-z][a-z0-9-]*$'),   -- starts with a letter, so it is never mistaken for a number or range
+  name text,
+  pinned_item_id uuid references jukebox_items(id) on delete set null   -- "Show now": shown on this screen over any slot until cleared
+);
+insert into jukebox_screens (number, slug, name) values (1, 'main', 'Main');
 create table jukebox_slots (
   id uuid primary key default gen_random_uuid(),
+  screen_id uuid not null references jukebox_screens(id) on delete cascade,
   item_id uuid not null references jukebox_items(id) on delete cascade,
   days smallint[] not null,
   start_time text not null check (start_time ~ '^([01][0-9]|2[0-3]):[0-5][05]$'),
@@ -34,15 +42,42 @@ create table jukebox_slots (
 );
 alter table jukebox_items enable row level security;
 alter table jukebox_slots enable row level security;
+alter table jukebox_screens enable row level security;
 -- Screen & Titles (anonymous) can read; only signed-in admin can write
 create policy "public read items" on jukebox_items for select using (true);
 create policy "public read slots" on jukebox_slots for select using (true);
 create policy "admin write items" on jukebox_items for all to authenticated using (true) with check (true);
 create policy "admin write slots" on jukebox_slots for all to authenticated using (true) with check (true);
+create policy "public read screens" on jukebox_screens for select using (true);
+create policy "admin write screens" on jukebox_screens for all to authenticated using (true) with check (true);
 -- RLS policies only restrict which rows a role sees; the role still needs the underlying table
 -- grant to touch the table at all. Supabase usually sets this up automatically for new tables in
 -- "public", but it doesn't always take — if you hit "permission denied for table ..." (Postgres
 -- error 42501) after running the above, run this block too.
 grant usage on schema public to anon, authenticated;
-grant select on jukebox_items, jukebox_slots to anon, authenticated;
-grant insert, update, delete on jukebox_items, jukebox_slots to authenticated;
+grant select on jukebox_items, jukebox_slots, jukebox_screens to anon, authenticated;
+grant insert, update, delete on jukebox_items, jukebox_slots, jukebox_screens to authenticated;
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- An EXISTING database (made before screens) needs this block instead of re-running the above. Run it once, as a whole.
+-- Every existing slot goes to a new screen 1 ("main"), and a current "Show now" item moves to it.
+--
+-- create table jukebox_screens (
+--   id uuid primary key default gen_random_uuid(),
+--   number int not null unique check (number >= 1),
+--   slug text not null unique check (slug ~ '^[a-z][a-z0-9-]*$'),
+--   name text,
+--   pinned_item_id uuid references jukebox_items(id) on delete set null
+-- );
+-- insert into jukebox_screens (number, slug, name) values (1, 'main', 'Main');
+-- update jukebox_screens set pinned_item_id = (select id from jukebox_items where pinned limit 1);
+-- alter table jukebox_slots add column screen_id uuid references jukebox_screens(id) on delete cascade;
+-- update jukebox_slots set screen_id = (select id from jukebox_screens where number = 1);
+-- alter table jukebox_slots alter column screen_id set not null;
+-- alter table jukebox_items add column screens text;
+-- alter table jukebox_items drop column pinned;
+-- alter table jukebox_screens enable row level security;
+-- create policy "public read screens" on jukebox_screens for select using (true);
+-- create policy "admin write screens" on jukebox_screens for all to authenticated using (true) with check (true);
+-- grant select on jukebox_screens to anon, authenticated;
+-- grant insert, update, delete on jukebox_screens to authenticated;

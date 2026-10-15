@@ -1,14 +1,14 @@
 
-import {validTime, validEnd, validDuration, validYear, validMonthDay, normalizeMonthDay, currentYear, defaultDuration, findConflict, rotationSlots, validRotationMinutes, todayISO, DAYS} from "./lib.js";
+import {DURATION_TYPES, validTime, validEnd, validDuration, validYear, validMonthDay, normalizeMonthDay, defaultDuration, findConflict, rotationSlots, validRotationMinutes, todayISO, DAYS} from "./lib.js";
 
 const nul = (v) => (v === "" || v === undefined ? null : v);
 const num = (v) => (v === "" || v === undefined || v === null ? null : Number(v));
 const toRow = {
   item: (i) => ({title: i.title, authorship: nul(i.authorship), url: i.url,
     year_created: num(i.yearCreated), month_day_created: nul(i.monthDayCreated),
-    year_published: num(i.yearPublished), month_day_published: nul(i.monthDayPublished),
+    date_related_notes: nul(i.dateRelatedNotes),
     where_created: nul(i.whereCreated),
-    publisher: nul(i.publisher), media: nul(i.media), delivery: nul(i.delivery), duration: nul(i.duration), notes: nul(i.notes),
+    publisher: nul(i.publisher), media: nul(i.media), delivery: nul(i.delivery), duration: nul(i.duration), duration_type: i.durationType, notes: nul(i.notes),
     course: nul(i.course), mentor: nul(i.mentor), license: nul(i.license), credits: nul(i.credits),
     rotation: !!i.rotation,
     hide_url: !!i.hideURL, further_info_url: nul(i.furtherInfoURL)}),
@@ -17,9 +17,9 @@ const toRow = {
 const fromRow = {
   item: (r) => ({id: r.id, title: r.title, authorship: r.authorship ?? "", url: r.url,
     yearCreated: r.year_created == null ? "" : String(r.year_created), monthDayCreated: r.month_day_created ?? "",
-    yearPublished: r.year_published == null ? "" : String(r.year_published), monthDayPublished: r.month_day_published ?? "",
+    dateRelatedNotes: r.date_related_notes ?? "",
     whereCreated: r.where_created ?? "",
-    publisher: r.publisher ?? "", media: r.media ?? "", delivery: r.delivery ?? "", duration: r.duration ?? "", notes: r.notes ?? "",
+    publisher: r.publisher ?? "", media: r.media ?? "", delivery: r.delivery ?? "", duration: r.duration ?? "", durationType: r.duration_type ?? "work", notes: r.notes ?? "",
     course: r.course ?? "", mentor: r.mentor ?? "", license: r.license ?? "", credits: r.credits ?? "",
     rotation: !!r.rotation, pinned: !!r.pinned,   // pinned is read-only here: toRow.item leaves it alone, so saving an item never changes it
     hideURL: !!r.hide_url, furtherInfoURL: r.further_info_url ?? ""}),
@@ -87,25 +87,23 @@ export function localAdapter(key = "dxd-jukebox-dev") {
 const describe = (s) => s.days.map((d) => DAYS[d]).join("/") + " " + s.start + "-" + s.end;
 const str = (v) => String(v ?? "").trim();
 
-// Trim, apply the "year published defaults to the current year" rule, normalize Month/Day, and validate.
+// Trim, normalize Month/Day, and validate.
 // Required: title, url, year created. Duration is optional: when blank it is stored empty and load() supplies the default.
 function cleanItem(item) {
   const it = {...item};
   // An item that came back from load() carries the slot-derived duration in "duration". If that value is still
   // unchanged it must not be frozen into the record; a duration the user typed (different from it) is kept.
   if (it.durationIsDefault && it.duration === it.durationDefault) it.duration = "";
-  for (const k of ["title", "url", "yearCreated", "monthDayCreated", "yearPublished", "monthDayPublished", "duration", "furtherInfoURL"]) it[k] = str(it[k]);
+  for (const k of ["title", "url", "yearCreated", "monthDayCreated", "duration", "durationType", "furtherInfoURL"]) it[k] = str(it[k]);
   it.rotation = !!it.rotation;
   it.hideURL = !!it.hideURL;
   if (!it.title) throw new Error("Title is required");
   if (!it.url) throw new Error("URL is required");
   if (!validYear(it.yearCreated)) throw new Error("Year created is required: a four-digit year, e.g. 2024");
   if (it.monthDayCreated && !validMonthDay(it.monthDayCreated)) throw new Error("Month/Day created must be a real date as M/D, e.g. 3/14");
-  if (!it.yearPublished) it.yearPublished = currentYear();
-  if (!validYear(it.yearPublished)) throw new Error("Year published must be a four-digit year, e.g. 2024 (or leave blank for the current year)");
-  if (it.monthDayPublished && !validMonthDay(it.monthDayPublished)) throw new Error("Month/Day published must be a real date as M/D, e.g. 3/14");
   if (it.monthDayCreated) it.monthDayCreated = normalizeMonthDay(it.monthDayCreated);
-  if (it.monthDayPublished) it.monthDayPublished = normalizeMonthDay(it.monthDayPublished);
+  if (!it.durationType) it.durationType = "work";
+  if (!DURATION_TYPES.includes(it.durationType)) throw new Error("Duration type must be one of: " + DURATION_TYPES.join(", "));
   if (it.duration && !validDuration(it.duration)) throw new Error("Duration must be M:SS or H:MM:SS with no leading zero, e.g. 3:45 or 1:02:30 (or leave blank)");
   return it;
 }

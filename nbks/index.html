@@ -11,6 +11,26 @@
     const fields = page.querySelector("#fields");
     const message = page.querySelector("#message");
 
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    // yearCreated shows as "14 March 2024" when monthDayCreated (stored as "M/D") is set, otherwise just the year
+    function createdText(item) {
+      if (!item.monthDayCreated) return item.yearCreated;
+      const [month, day] = item.monthDayCreated.split("/").map(Number);
+      return `${day} ${MONTHS[month - 1]} ${item.yearCreated}`;
+    }
+
+    // duration reads according to durationType. item.duration is already the first slot's length when none was entered
+    // (see load() in repo.js), so "work" needs no extra fallback here. A loop with no duration at all shows nothing.
+    function durationText(item) {
+      const d = item.duration;
+      switch (item.durationType) {
+        case "ambient": return "Ambient";
+        case "loop": return d ? "Loops over " + d : "";
+        case "ambient loop": return d ? "Ambient, looping over " + d : "";
+        default: return d;
+      }
+    }
+
     function showItem(item) {
       message.style.display = "none";
       heading.style.display = "";
@@ -24,7 +44,7 @@
         const dd = fields.querySelector(`#${f.key}Value`);
         if (!dd) continue;
         const dt = fields.querySelector(`#${f.key}`);
-        const value = f.key === "title" || (f.key === "url" && item.hideURL) ? "" : item[f.key];
+        const value = f.key === "title" || (f.key === "url" && item.hideURL) ? "" : f.key === "yearCreated" ? createdText(item) : f.key === "duration" ? durationText(item) : item[f.key];
         const show = value ? "" : "none";
         dd.style.display = show;
         if (dt) dt.style.display = show;
@@ -54,10 +74,10 @@
     let timing = null;
     function drawScreenLink() {
       if (!timing) { screenLink.textContent = "Screen"; return; }
-      if (timing.pinned) { screenLink.textContent = "Showing on screen until further notice"; return; }
+      if (timing.pinned) { screenLink.textContent = "On screen until further notice"; return; }
       // elapsed = length - time left, kept between 0 and the slot's length
       const elapsed = Math.min(timing.length, Math.max(0, timing.length - Math.round((timing.endsAt - Date.now()) / 1000)));
-      screenLink.textContent = `Showing on screen for ${formatDuration(elapsed)} of ${formatDuration(timing.length)}`;
+      screenLink.textContent = `On screen for ${formatDuration(elapsed)} of ${formatDuration(timing.length)}`;
     }
     setInterval(drawScreenLink, 1000);
 
@@ -155,11 +175,12 @@
       <dl id="fields">
         <dt id="authorship"></dt><dd id="authorshipValue"></dd>
         <dt id="yearCreated"></dt><dd id="yearCreatedValue"></dd>
+        <dt id="dateRelatedNotes"></dt><dd id="dateRelatedNotesValue"></dd>
         <dt id="media">composition media</dt><dd id="mediaValue"></dd>
         <dt id="url"></dt><dd id="urlValue"></dd>
         <dt id="notes"></dt><dd id="notesValue"></dd>
         <dt id="credits">references<br>&amp; thanks</dt><dd id="creditsValue"></dd>
-        <dt id="duration">duration of work</dt><dd id="durationValue" style="font-family: var(--monospace); font-size: .8em;"></dd>
+        <dt id="duration">duration</dt><dd id="durationValue" style="font-family: var(--monospace); font-size: .85em;"></dd>
         <dt id="furtherInfoURL">further information</dt><dd id="furtherInfoURLValue"></dd>
         <dt id="license">license</dt><dd id="licenseValue"></dd>
         <dt id="whereCreated">made in</dt><dd id="whereCreatedValue"></dd>

@@ -63,14 +63,14 @@ Security comes from row-level security in `schema.sql`: anyone can read, and onl
 | Hide URL | no | checkbox (default off); when ticked, Titles does not show the URL |
 | Year created | yes | four digits, e.g. `2024` |
 | Month/Day created | no | `M/D`, e.g. `3/14` |
-| Year published | no | four digits; defaults to the current year when saved |
-| Month/Day published | no | `M/D` |
 | Where created | no | |
 | Publisher | no | |
 | Constituent media | no | |
 | Delivery medium | no | |
 | Duration | no | `M:SS` or `H:MM:SS`; defaults to the length of the item's first slot |
+| Duration type | no | dropdown (key `durationType`): `work`, `loop`, `ambient` or `ambient loop`; defaults to `work` |
 | Notes | no | |
+| Date related notes | no | free form (key `dateRelatedNotes`) |
 | Further info URL | no | an optional link, shown on Titles as a link if its row exists in the Titles page |
 | Course | no | |
 | Mentor | no | |
@@ -83,7 +83,6 @@ Only Title, URL and Year created are required.
 On the Admin page, each form label shows the field's key in parentheses (these keys are the ids Titles uses, below). The items table has a search box above it to find a specific item to edit or delete, matching against title or authorship (case-insensitive, substring match). Clicking **Edit** loads that item into the form above; clicking **Delete** removes it and its slots after confirmation.
 
 - **Years** are four digits (1000–9999). **Month/Day** is written `M/D`. A leading zero is accepted (`03/14`) and stored as `3/14`. The day must exist in that month. `2/29` is allowed because the year may be unknown.
-- **Year published default:** if left blank, the current year is filled in when the item is saved and stored, so an item saved in 2026 stays 2026 in later years.
 - **Duration format:** colon separated, with no leading zero on the first number (`3:45`, `90:00`, `1:02:30`, not `03:45`). Numbers after a colon are two digits and below 60 (`3:05`, not `3:5`).
 - **Duration default:** when an item has no duration of its own, it uses the length of its first slot (end minus start): 9:00–10:00 is `1:00:00`, 9:00–9:30 is `30:00`. The first slot is the one with the earliest start date, then the earliest time of day. The default is worked out whenever data is loaded and is not stored, so it follows the schedule. Type a duration and yours wins. Empty the box and it goes back to following the slot.
 
@@ -124,7 +123,7 @@ The link in the lower-right corner of Titles goes to Screen. While a slot is sho
 - **Framing:** some sites refuse to be shown in an iframe (`X-Frame-Options` or CSP). The Screen then shows a blank frame. Consider checking such URLs when saving.
 - **Overlap check** runs in the browser, not the database. Two admins adding slots at the same instant could both pass. With one admin this does not matter.
 - **"First slot"** is by start date and time of day, not by the order slots were added. An item with slots of different lengths gets only the first one's length as its default.
-- Years are not cross-checked (a published year earlier than the created year is accepted), and an explicit duration is not checked against slot lengths.
+- Years are not cross-checked, and an explicit duration is not checked against slot lengths.
 - Slots can be added and removed but not yet edited in place.
 - **Video:** playback is muted (browsers block unmuted autoplay) and the file's host must allow direct linking; a file that cannot be played shows a message on Screen.
 - **Rotation:** Generate removes the old rotation before inserting the new one, so a failed insert leaves no rotation (run Generate again). Items flagged after a rotation was generated are not included until you generate again.

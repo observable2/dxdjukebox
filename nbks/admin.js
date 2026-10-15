@@ -40,13 +40,15 @@ export function mountAdmin(root, repo, html) {
     const ro = !ad.canWrite, ed = st.editing, inputs = {};
     const form = html`<form style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px"></form>`;
     for (const f of FIELDS) {
-      const el = f.type === "textarea" ? html`<textarea rows=2></textarea>` : html`<input type=${f.type ?? "text"}>`;
+      const el = f.type === "textarea" ? html`<textarea rows=2></textarea>`
+        : f.type === "select" ? html`<select>${f.options.map((o) => html`<option value=${o}>${o}</option>`)}</select>`
+        : html`<input type=${f.type ?? "text"}>`;
       // A duration that only comes from the item's first slot is shown as a placeholder, not as a value,
       // so saving the form does not turn the default into a fixed value.
       const fromSlot = f.key === "duration" && ed.durationIsDefault && ed.duration === ed.durationDefault;
       const isBox = f.type === "checkbox";
       Object.assign(el, {required: !!f.required, disabled: ro});
-      if (isBox) el.checked = !!ed[f.key]; else el.value = fromSlot ? "" : (ed[f.key] ?? "");
+      if (isBox) el.checked = !!ed[f.key]; else el.value = fromSlot ? "" : (ed[f.key] || f.default || "");
       if (f.pattern) { el.pattern = f.pattern; el.title = f.placeholder; }
       el.placeholder = fromSlot ? "default: " + ed.duration + " (length of first slot)" : (f.placeholder ?? "");
       if (!isBox) el.style.width = "100%";

@@ -4,11 +4,14 @@ create table jukebox_items (
   title text not null, authorship text, url text not null,
   year_created smallint not null check (year_created between 1000 and 9999),
   month_day_created text check (month_day_created ~ '^([1-9]|1[0-2])/([1-9]|[12][0-9]|3[01])$'),   -- M/D, e.g. 3/14
-  year_published smallint not null default extract(year from now())::smallint check (year_published between 1000 and 9999),
-  month_day_published text check (month_day_published ~ '^([1-9]|1[0-2])/([1-9]|[12][0-9]|3[01])$'),
+  date_related_notes text,   -- free form
+                             -- (an existing database needs: alter table jukebox_items add column date_related_notes text;
+                             --  alter table jukebox_items drop column year_published, drop column month_day_published;)
   where_created text,
   publisher text, media text, delivery text,
   duration text check (duration ~ '^(0|[1-9][0-9]*):[0-5][0-9](:[0-5][0-9])?$'),  -- M:SS or H:MM:SS, first number unpadded
+  duration_type text not null default 'work' check (duration_type in ('work', 'loop', 'ambient', 'ambient loop')),
+                   -- (an existing database needs: alter table jukebox_items add column duration_type text not null default 'work' check (duration_type in ('work', 'loop', 'ambient', 'ambient loop'));)
   notes text,
   course text, mentor text, license text, credits text,
   rotation boolean not null default false,

@@ -100,7 +100,7 @@ One installation can run any number of screens, each with its own schedule, rota
 
 - A screen has a **number** (1, 2, 3, ...) and a **slug** (lowercase letters, digits and hyphens, starting with a letter, e.g. `lobby`), each unique, and an optional name. The first screen is `1` / `main`.
 - A page names its screen with `?s=` in its URL: `/screen?s=2`, `/screen?s=lobby`, `/?s=lobby` (Titles). With no `?s=` the lowest-numbered screen is shown, so existing embeds keep working. The Screen link on Titles goes to the same screen.
-- On the Admin page, the **Screen** section at the top picks which screen the Rotation, Schedule and Show now sections work on, and shows the Screen and Titles URLs for it. **Manage screens** adds, renames and deletes screens. Deleting a screen deletes its slots (items are kept); the last screen cannot be deleted.
+- On the Admin page, the **Screen** section at the top picks which screen the Rotation, Schedule and Show now sections work on, and shows the Screen and Titles URLs for it. **Manage screens** adds, renames and deletes screens, and sets each screen's **Titles link on Screen** checkbox (default on): whether the Screen page shows its small link to the Titles page for that screen. Deleting a screen deletes its slots (items are kept); the last screen cannot be deleted.
 - An item's **Screens** text (see Items) uses numbers, ranges and slugs: `2, 7-10, lobby` means screens 2, 7, 8, 9, 10 and `lobby`. A number or range may name screens that do not exist yet. A slug must exist when the item is saved; if the screen is later deleted or renamed, the slug is simply ignored by the rotation.
 
 ## Rotation

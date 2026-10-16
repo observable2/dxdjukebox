@@ -52,6 +52,8 @@ export const FIELDS = [
 export const SLUG_PATTERN = "[a-z][a-z0-9-]*";
 export const validSlug = (t) => new RegExp("^" + SLUG_PATTERN + "$").test(t ?? "");
 export const screenRefFromURL = (search = location.search) => new URLSearchParams(search).get("s") || undefined;
+// The URL query that names a screen: none for screen 1 (what a page with no query shows), else ?s=slug.
+export const screenQuery = (screen) => (screen.number === 1 ? "" : "?s=" + encodeURIComponent(screen.slug));
 // The screen a reference ("2", "lobby", or none = the lowest-numbered screen) names, or undefined.
 export function findScreen(screens, ref) {
   const sorted = [...screens].sort((a, b) => a.number - b.number);
@@ -145,9 +147,12 @@ export const findConflict = (slots, s, ignoreId) =>
 
 // Current item: the pinned item if there is one (it beats every slot, manual or generated, until unpinned);
 // otherwise the slot covering now (start <= now < end), or null when nothing is scheduled.
-// currentInfo also says why: {item, pinned, endsAt, length} where, for a slot, endsAt is a Date and length is the
+// currentInfo also says why: {item, pinned, endsAt, length, screen} where, for a slot, endsAt is a Date and length is the
 // slot's length in seconds; a pinned item has neither (it stays until unpinned). {item: null} = nothing scheduled.
 export function currentInfo(data, now = new Date()) {
+  return {...currentShowing(data, now), screen: data.screen};   // screen: the screen it is for, so a page can use its settings
+}
+function currentShowing(data, now) {
   const pinned = data.items.find((i) => i.id === data.pinnedItemId);
   if (pinned) return {item: pinned, pinned: true};
   const hm = hhmm(now);

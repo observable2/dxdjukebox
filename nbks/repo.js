@@ -12,7 +12,7 @@ const toRow = {
     course: nul(i.course), mentor: nul(i.mentor), license: nul(i.license), credits: nul(i.credits),
     rotation: !!i.rotation, screens: nul(i.screens),
     hide_url: !!i.hideURL, further_info_url: nul(i.furtherInfoURL)}),
-  screen: (s) => ({number: s.number, slug: s.slug, name: nul(s.name)}),
+  screen: (s) => ({number: s.number, slug: s.slug, name: nul(s.name), show_titles_link: s.showTitlesLink}),
   slot: (s) => ({screen_id: s.screenId, item_id: s.itemId, days: s.days, start_time: s.start, end_time: s.end, weeks: s.weeks, from_date: s.from, rotation: !!s.rotation})
 };
 const fromRow = {
@@ -25,7 +25,7 @@ const fromRow = {
     rotation: !!r.rotation, screens: r.screens ?? "",
     hideURL: !!r.hide_url, furtherInfoURL: r.further_info_url ?? ""}),
   // pinnedItemId is read-only here: toRow.screen leaves it alone, so saving a screen never changes what is pinned
-  screen: (r) => ({id: r.id, number: r.number, slug: r.slug, name: r.name ?? "", pinnedItemId: r.pinned_item_id ?? null}),
+  screen: (r) => ({id: r.id, number: r.number, slug: r.slug, name: r.name ?? "", showTitlesLink: r.show_titles_link !== false, pinnedItemId: r.pinned_item_id ?? null}),
   slot: (r) => ({id: r.id, screenId: r.screen_id, itemId: r.item_id, days: r.days, start: r.start_time, end: r.end_time, weeks: r.weeks, from: r.from_date, rotation: !!r.rotation})
 };
 
@@ -78,7 +78,7 @@ export function localAdapter(key = "dxd-jukebox-dev") {
     let d; try { d = JSON.parse(localStorage.getItem(key)); } catch { d = null; }
     d = {item: [], slot: [], screen: [], ...d};
     if (!d.screen.length) {   // first run, or data saved before screens existed: one default screen takes every existing slot
-      const s = {id: crypto.randomUUID(), number: 1, slug: "main", name: "Main", pinned_item_id: null};
+      const s = {id: crypto.randomUUID(), number: 1, slug: "main", name: "Main", show_titles_link: true, pinned_item_id: null};
       d.screen.push(s);
       d.slot = d.slot.map((x) => ({screen_id: s.id, ...x}));
       write(d);
@@ -161,7 +161,7 @@ export function createRepo(adapter) {
     deleteItem: (id) => adapter.remove("item", id),
     // Screens: a number and a slug, each unique. Deleting a screen deletes its slots; the last screen cannot be deleted.
     async saveScreen(screen) {
-      const s = {id: screen.id, number: Number(screen.number), slug: str(screen.slug).toLowerCase(), name: str(screen.name)};
+      const s = {id: screen.id, number: Number(screen.number), slug: str(screen.slug).toLowerCase(), name: str(screen.name), showTitlesLink: screen.showTitlesLink !== false};
       if (!Number.isInteger(s.number) || s.number < 1) throw new Error("Screen number must be a whole number, 1 or more");
       if (!validSlug(s.slug)) throw new Error("Screen slug must be lowercase letters, digits and hyphens, starting with a letter, e.g. lobby");
       const others = (await screensOf()).filter((o) => o.id !== s.id);

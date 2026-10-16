@@ -3,11 +3,12 @@
   <title>DxDJ</title>
   <script id="1" type="module" hidden="">
     import {repo} from "./config.js";
-    import {watchCurrent, screenRefFromURL} from "./lib.js";
+    import {watchCurrent, screenRefFromURL, screenQuery} from "./lib.js";
 
     const frame = page.querySelector("#frame");
     const video = page.querySelector("#video");
     const message = page.querySelector("#message");
+    const siteLink = page.querySelector("#site-link");
 
     // A URL whose path ends in a video file extension is played in <video>; anything else goes in the iframe.
     const isVideo = (url) => /\.(mp4|m4v|webm|mov|ogv)$/i.test(url.split(/[?#]/)[0]);
@@ -57,7 +58,14 @@
     watchCurrent(repo,
       (item) => (item ? showItem(item) : showMessage("The DxD Jukebox “Screen” • Nothing is scheduled at this time.", false)),
       (error) => showMessage(error, true),
-      undefined, undefined, screenRefFromURL());   // ?s=2 or ?s=lobby picks the screen; none = the lowest-numbered
+      undefined,
+      // The Titles link is hidden until the screen is known, then shown or hidden by that screen's "Show Titles link" setting
+      // (Admin), and goes to the Titles page for this same screen (no ?s= for screen 1).
+      (info) => {
+        siteLink.style.display = info.screen.showTitlesLink ? "" : "none";
+        siteLink.querySelector("a").href = "https://dxdj.programmatology.com/" + screenQuery(info.screen);   // screen 1: no query
+      },
+      screenRefFromURL());   // ?s=2 or ?s=lobby picks the screen; none = the lowest-numbered
   </script>
   <script id="2" type="text/html" output="page">
     <style>
@@ -85,6 +93,6 @@
       <video id="video" autoplay muted loop playsinline style="display:none;object-fit:contain;background:#000"></video>
       <div id="message" style="display:none;align-items:center;justify-content:center;text-align:center;"></div>
     </div>
-    <div id="site-link"><a href="https://dxdj.programmatology.com" target="_top">dxdj.programmatology.com</a></div>
+    <div id="site-link" style="display:none"><a href="https://dxdj.programmatology.com" target="_top">dxdj.programmatology.com</a></div>
   </script>
 </notebook>

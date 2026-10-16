@@ -10,6 +10,7 @@ export function mountAdmin(root, repo, html) {
     editingScreen: {},                 // the screen in the screens form ({} = a new one)
     editing: {},                       // the item in the form ({} = a new one)
     listOpen: true,                    // whether the items list is expanded, kept between redraws
+    screensOpen: false,                // likewise for Manage screens
     slot: {itemId: "", days: [], start: "09:00", end: "10:00", weeks: 1, from: todayISO()},   // the slot form, kept between redraws
     search: "",                        // items-table filter text, kept between redraws
     rotMinutes: 10,                    // the rotation's slot length, kept between redraws
@@ -61,12 +62,14 @@ export function mountAdmin(root, repo, html) {
     const number = field("number", "Number", html`<input type=number min=1 required style="width:5em">`);
     const slug = field("slug", "Slug", html`<input pattern=${"[a-z][a-z0-9\\-]*"} title="lowercase letters, digits and hyphens, starting with a letter" required size=12>`);
     const name = field("name", "Name", html`<input size=20>`);
+    const titlesLink = html`<input type=checkbox checked=${ed.showTitlesLink ?? true} disabled=${ro}>`;   // a new screen shows the link
     const form = html`<form style="margin-top:6px">${number} ${slug} ${name}
+      <label title="A small link on the Screen page to the Titles page for this screen">${titlesLink} Titles link on Screen</label>
       <button disabled=${ro}>${ed.id ? "Update screen" : "Add screen"}</button>
       <button type=button onclick=${() => { st.editingScreen = {}; st.msg = ""; render(); }}>Clear</button></form>`;
     form.onsubmit = guard(async (e) => {
       e.preventDefault();
-      st.editingScreen = {...ed, number: inputs.number.value, slug: inputs.slug.value, name: inputs.name.value};   // keep what was typed if saving fails
+      st.editingScreen = {...ed, number: inputs.number.value, slug: inputs.slug.value, name: inputs.name.value, showTitlesLink: titlesLink.checked};   // keep what was typed if saving fails
       await repo.saveScreen(st.editingScreen);
       st.editingScreen = {};
       await refresh();
@@ -77,13 +80,15 @@ export function mountAdmin(root, repo, html) {
           if (!confirm("Delete screen " + s.number + " (" + s.slug + ") and its slots? Items are kept.")) return;
           await repo.deleteScreen(s.id); await refresh();
         })}>Delete</button></td></tr>`;
+    const manage = html`<details style="margin-top:6px" open=${st.screensOpen}><summary>Manage screens (${screens.length})</summary>${form}
+        <p style="color:#666;margin:6px 0">A screen has a number and a slug, each unique. An item's Screens text (for rotation) can use numbers, ranges and slugs: <code>2, 7-10, lobby</code>. A page with no <code>?s=</code> shows the lowest-numbered screen. Deleting a screen deletes its slots.</p>
+        <table style="width:100%"><tr><th align=left>Number</th><th align=left>Slug</th><th align=left>Name</th><th></th></tr>${screens.map(row)}</table></details>`;
+    manage.ontoggle = () => { st.screensOpen = manage.open; };   // only the arrow opens or closes it; redraws keep it as it was
     return html`<section><h3>Screen</h3>
       <div>Working on ${pick}
         <small style="color:#666">Rotation, Schedule and Show now below apply to this screen; Items are shared by all screens.</small></div>
       <div style="margin-top:6px"><small style="color:#666;overflow-wrap:anywhere">Screen: <a href=${screenURL} target=_blank>${screenURL}</a><br>Titles: <a href=${titlesURL} target=_blank>${titlesURL}</a></small></div>
-      <details style="margin-top:6px"><summary>Manage screens (${screens.length})</summary>${form}
-        <p style="color:#666;margin:6px 0">A screen has a number and a slug, each unique. An item's Screens text (for rotation) can use numbers, ranges and slugs: <code>2, 7-10, lobby</code>. A page with no <code>?s=</code> shows the lowest-numbered screen. Deleting a screen deletes its slots.</p>
-        <table style="width:100%"><tr><th align=left>Number</th><th align=left>Slug</th><th align=left>Name</th><th></th></tr>${screens.map(row)}</table></details></section>`;
+      ${manage}</section>`;
   }
 
   function itemsPanel() {

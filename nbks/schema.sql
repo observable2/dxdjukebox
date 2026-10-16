@@ -25,6 +25,7 @@ create table jukebox_screens (
   number int not null unique check (number >= 1),
   slug text not null unique check (slug ~ '^[a-z][a-z0-9-]*$'),   -- starts with a letter, so it is never mistaken for a number or range
   name text,
+  show_titles_link boolean not null default true,   -- whether the Screen page shows a small link to Titles
   pinned_item_id uuid references jukebox_items(id) on delete set null   -- "Show now": shown on this screen over any slot until cleared
 );
 insert into jukebox_screens (number, slug, name) values (1, 'main', 'Main');
@@ -67,6 +68,7 @@ grant insert, update, delete on jukebox_items, jukebox_slots, jukebox_screens to
 --   number int not null unique check (number >= 1),
 --   slug text not null unique check (slug ~ '^[a-z][a-z0-9-]*$'),
 --   name text,
+--   show_titles_link boolean not null default true,
 --   pinned_item_id uuid references jukebox_items(id) on delete set null
 -- );
 -- insert into jukebox_screens (number, slug, name) values (1, 'main', 'Main');
@@ -81,3 +83,6 @@ grant insert, update, delete on jukebox_items, jukebox_slots, jukebox_screens to
 -- create policy "admin write screens" on jukebox_screens for all to authenticated using (true) with check (true);
 -- grant select on jukebox_screens to anon, authenticated;
 -- grant insert, update, delete on jukebox_screens to authenticated;
+--
+-- A database already migrated to screens (before the Titles link setting) needs only:
+-- alter table jukebox_screens add column show_titles_link boolean not null default true;

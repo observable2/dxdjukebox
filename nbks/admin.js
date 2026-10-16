@@ -9,6 +9,7 @@ export function mountAdmin(root, repo, html) {
     screenRef: undefined,              // number of the screen the schedule, rotation and Show now panels work on (undefined = lowest)
     editingScreen: {},                 // the screen in the screens form ({} = a new one)
     editing: {},                       // the item in the form ({} = a new one)
+    listOpen: true,                    // whether the items list is expanded, kept between redraws
     slot: {itemId: "", days: [], start: "09:00", end: "10:00", weeks: 1, from: todayISO()},   // the slot form, kept between redraws
     search: "",                        // items-table filter text, kept between redraws
     rotMinutes: 10,                    // the rotation's slot length, kept between redraws
@@ -87,7 +88,17 @@ export function mountAdmin(root, repo, html) {
 
   function itemsPanel() {
     const ro = !ad.canWrite, ed = st.editing, inputs = {};
-    const form = html`<form style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px"></form>`;
+    // Compact form: two columns of fields, each label to the left of its field in the sans-serif (Inter) face, which is
+    // narrower than the serif body text; a long label wraps inside its label column instead of widening it.
+    const form = html`<form class="item-form" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 20px">
+      <style>
+        .item-form label { display: grid; grid-template-columns: 9.5em minmax(0, 1fr); gap: 0 8px; align-items: center;
+                           font-family: var(--sans-serif); font-size: 0.8em; line-height: 1.2; }
+        .item-form label.tall { align-items: start; }
+        .item-form label small { color: #777; font-size: 0.85em; overflow-wrap: anywhere; }
+        .item-form input:not([type=checkbox]), .item-form textarea, .item-form select { font-family: inherit; font-size: inherit; }
+        .item-form input[type=checkbox] { margin: 0; justify-self: start; }
+      </style></form>`;
     for (const f of FIELDS) {
       const el = f.type === "textarea" ? html`<textarea rows=2></textarea>`
         : f.type === "select" ? html`<select>${f.options.map((o) => html`<option value=${o}>${o}</option>`)}</select>`
@@ -102,7 +113,7 @@ export function mountAdmin(root, repo, html) {
       el.placeholder = fromSlot ? "default: " + ed.duration + " (length of first slot)" : (f.placeholder ?? "");
       if (!isBox) el.style.width = "100%";
       inputs[f.key] = el;
-      form.append(html`<label style="${f.type === "textarea" ? "grid-column:span 2" : ""}">${f.label}${f.required ? " *" : ""} <small style="color:#666;font-size:0.75em;overflow-wrap:anywhere">(${f.key})</small><br>${el}</label>`);
+      form.append(html`<label class=${f.type === "textarea" ? "tall" : ""} style="${f.type === "textarea" ? "grid-column:span 2" : ""}"><span>${f.label}${f.required ? " *" : ""} <small>(${f.key})</small></span>${el}</label>`);
     }
     form.append(html`<div style="grid-column:span 2"><button disabled=${ro}>${ed.id ? "Update item" : "Add item"}</button>
       <button type=button onclick=${() => { st.editing = {}; st.msg = ""; render(); }}>Clear</button>
@@ -116,10 +127,15 @@ export function mountAdmin(root, repo, html) {
       st.editing = {};
       await refresh();
     });
+    // One line per item: the table has fixed column widths and a cell too long for its column is cut off with an ellipsis
+    // (hover to see it all), so the list is as wide as the form above and no row wraps.
+    const cell = (text, extra) => html`<td title=${text} style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${extra ?? text}</td>`;
     const row = (it) => html`<tr>
-      <td>${it.title}</td><td>${it.authorship}</td>
-      <td>${it.duration}${it.durationIsDefault ? html` <small style="color:#666">(first slot)</small>` : ""}</td>
-      <td><button onclick=${() => { st.editing = it; st.msg = ""; render(); }}>Edit</button>
+      ${cell(it.title)}${cell(it.authorship)}
+      ${cell(it.duration, html`${it.duration}${it.durationIsDefault ? html` <small style="color:#666">(first slot)</small>` : ""}`)}
+      <td><input type=checkbox checked=${it.rotation} disabled title="Included in Rotation (change it with Edit)"></td>
+      ${cell(it.screens)}
+      <td style="white-space:nowrap"><button onclick=${() => { st.editing = it; st.msg = ""; render(); }}>Edit</button>
         <button disabled=${ro} onclick=${guard(async () => {
           if (confirm('Delete "' + it.title + '" and its slots?')) { await repo.deleteItem(it.id); await refresh(); }
         })}>Delete</button></td></tr>`;
@@ -128,14 +144,22 @@ export function mountAdmin(root, repo, html) {
     // search box keeps focus and caret position while typing.
     const matching = (q) => st.data.items.filter((it) =>
       !q || it.title.toLowerCase().includes(q) || (it.authorship ?? "").toLowerCase().includes(q));
-    const noMatch = () => html`<tr><td colspan=4 style="color:#666">No items match "${st.search}"</td></tr>`;
+    const noMatch = () => html`<tr><td colspan=6 style="color:#666">No items match "${st.search}"</td></tr>`;
     const rowsFor = (q) => { const found = matching(q).map(row); return found.length ? found : [noMatch()]; };
     const tbody = html`<tbody>${rowsFor(st.search.trim().toLowerCase())}</tbody>`;
     const search = html`<input type=search placeholder="Find an item by title or authorship…" style="width:100%" value=${st.search}
       oninput=${() => { st.search = search.value; tbody.replaceChildren(...rowsFor(st.search.trim().toLowerCase())); }}>`;
-    return html`<section><h3>Items (${st.data.items.length})</h3>${form}
-      <div style="margin-top:10px">${search}</div>
-      <table style="width:100%;margin-top:6px"><tr><th align=left>Title</th><th align=left>Authorship</th><th align=left>Duration</th><th></th></tr>${tbody}</table></section>`;
+    const list = html`<details style="margin-top:10px" open=${st.listOpen}><summary>Item list (${st.data.items.length})</summary>
+      <div style="margin-top:6px">${search}</div>
+      <style>
+        .items-list th, .items-list td { padding: 2px 8px 2px 0; text-align: left; vertical-align: middle; }   /* same for headings and values, so they line up */
+        .items-list input[type=checkbox] { margin: 0; }
+      </style>
+      <table class="items-list" style="width:100%;max-width:none;table-layout:fixed;margin-top:6px">
+        <colgroup><col style="width:26%"><col style="width:20%"><col style="width:12%"><col style="width:6em"><col style="width:20%"><col style="width:11em"></colgroup>
+        <thead><tr><th>Title</th><th>Authorship</th><th>Duration</th><th>Rotation</th><th>Screens</th><th></th></tr></thead>${tbody}</table></details>`;
+    list.ontoggle = () => { st.listOpen = list.open; };
+    return html`<section><h3>Items (${st.data.items.length})</h3>${form}${list}</section>`;
   }
 
   function rotationPanel() {

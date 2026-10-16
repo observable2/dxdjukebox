@@ -177,7 +177,7 @@ export function mountAdmin(root, repo, html) {
     minutes.oninput = () => { st.rotMinutes = +minutes.value; };
     // One row per item in the generated rotation, with the length of its slots (the last slot of the day may be shorter).
     const inRotation = items.filter((i) => generated.some((s) => s.itemId === i.id))
-      .map((i) => ({title: i.title, len: Math.max(...generated.filter((s) => s.itemId === i.id).map(mins))}));
+      .map((i) => ({title: i.authorship ? i.title + " / " + i.authorship : i.title, len: Math.max(...generated.filter((s) => s.itemId === i.id).map(mins))}));
     const generate = guard(async () => {
       await repo.generateRotation(st.rotMinutes, screen?.id); await refresh();
     });
@@ -193,7 +193,7 @@ export function mountAdmin(root, repo, html) {
         <button disabled=${ro} onclick=${reset}>Set all items' rotation to false</button></div>
       <p style="color:#666;margin:6px 0">Generate rotation fills every day with back-to-back slots cycling through the ${flagged.length} item${flagged.length === 1 ? "" : "s"} flagged Included in Rotation whose Screens text includes this screen (blank = every screen; the cycle restarts at midnight), replacing this screen's previous rotation. Manual slots are kept and take priority over the rotation while they apply; an item whose turn falls under a manual slot is skipped for that time. Clear rotation removes only this screen's generated slots; item flags are kept.</p>
       ${inRotation.length
-        ? html`<table style="width:100%"><tr><th align=left>Item in rotation</th><th align=left>Slot duration</th></tr>${inRotation.map((r) => html`<tr><td>${r.title}</td><td>${r.len} min</td></tr>`)}</table>`
+        ? html`<table style="width:100%"><tr><th align=left>Item in rotation (title / authorship)</th><th align=left>Slot duration</th></tr>${inRotation.map((r) => html`<tr><td>${r.title}</td><td>${r.len} min</td></tr>`)}</table>`
         : html`<p style="color:#666">No rotation is currently scheduled.</p>`}</section>`;
   }
 

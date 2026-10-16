@@ -52,6 +52,7 @@
         dd.style.display = show;
         if (dt) dt.style.display = show;
         if (!value) continue;
+        if (f.key === "mentor" && dt) dt.textContent = /,|&|\band\b/i.test(value) ? "advisors" : "advisor";
         if (f.key === "url" || f.key === "furtherInfoURL") {
           const a = document.createElement("a");
           a.href = value;

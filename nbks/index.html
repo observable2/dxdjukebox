@@ -8,6 +8,7 @@
 
     const screenLink = page.querySelector("#screen-link");
     const heading = page.querySelector("#heading");
+    const siteTitle = page.querySelector("#site-title");
     const fields = page.querySelector("#fields");
     const message = page.querySelector("#message");
 
@@ -91,6 +92,8 @@
       undefined,
       (info) => {
         timing = info.item ? info : null; drawScreenLink();
+        // screen 4 (slug "gallery") is the Distributed Gallery: its h3 says so, whether or not something is showing
+        if (info.screen.number === 4 || info.screen.slug === "gallery") siteTitle.textContent = "The Distributed Gallery";
         screenLink.href = "https://dxdj.programmatology.com/screen" + screenQuery(info.screen);
       },
       screenRef);
@@ -178,7 +181,7 @@
     </style>
 
     <div id="titles">
-      <h3 style="color: #666;margin-bottom: 2em;">DxD Jukebox &nbsp;•&nbsp; What’s Showing</h3>
+      <h3 id="site-title" style="color: #666;margin-bottom: 2em;">DxD Jukebox &nbsp;•&nbsp; What’s Showing</h3>
       <h2 id="heading" style="margin-bottom: 2em;"></h2>
       <dl id="fields">
         <dt id="authorship"></dt><dd id="authorshipValue"></dd>

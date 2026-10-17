@@ -42,10 +42,18 @@
         frame.style.display = "block";
       }
     }
+    // Set from the poll once the screen is known: screen 4 (slug "gallery") is the Distributed Gallery
+    let isGallery = false;
     function showMessage(text, isError) {
       stopAll();
       message.style.color = isError ? "crimson" : "#666";
-      message.textContent = text;
+      if (isGallery && !isError) {
+        const h3 = document.createElement("h3");
+        h3.textContent = "The Distributed Gallery";
+        message.replaceChildren(h3);
+      } else {
+        message.textContent = text;
+      }
       message.style.display = "flex";
     }
 
@@ -62,6 +70,7 @@
       // The Titles link is hidden until the screen is known, then shown or hidden by that screen's "Show Titles link" setting
       // (Admin), and goes to the Titles page for this same screen (no ?s= for screen 1).
       (info) => {
+        isGallery = info.screen.number === 4 || info.screen.slug === "gallery";
         siteLink.style.display = info.screen.showTitlesLink ? "" : "none";
         siteLink.querySelector("a").href = "https://dxdj.programmatology.com/" + screenQuery(info.screen);   // screen 1: no query
       },

@@ -35,17 +35,33 @@ export const FIELDS = [
   {key:"url",label:"URL",type:"url",required:true},{key:"hideURL",label:"Hide URL",type:"checkbox"},
   {key:"yearCreated",label:"Year created",required:true,pattern:YEAR_PATTERN,placeholder:"e.g. 2024"},
   {key:"monthDayCreated",label:"Month/Day created",pattern:MONTHDAY_PATTERN,placeholder:"optional, e.g. 3/14"},
-  {key:"dateRelatedNotes",label:"Date related notes",type:"textarea"},
+  {key:"dateRelatedNotes",label:"Date related notes",type:"markdown",rows:2},
   {key:"whereCreated",label:"Where created"},
   {key:"publisher",label:"Publisher"},{key:"media",label:"Constituent media"},
   {key:"delivery",label:"Delivery medium"},
   {key:"duration",label:"Duration",pattern:DURATION_PATTERN,placeholder:"e.g. 3:45 or 1:02:30; blank = length of first slot"},
   {key:"durationType",label:"Duration type",type:"select",options:DURATION_TYPES,default:DURATION_TYPES[0]},
-  {key:"notes",label:"Notes",type:"textarea"},{key:"furtherInfoURL",label:"Further info URL",type:"url"},
+  {key:"notes",label:"Notes",type:"markdown",rows:8},{key:"furtherInfoURL",label:"Further info URL",type:"url"},
   {key:"course",label:"Course"},{key:"mentor",label:"Mentor"},{key:"license",label:"License"},
-  {key:"credits",label:"Credits",type:"textarea"},
+  {key:"credits",label:"Credits",type:"markdown",rows:2},
   {key:"rotation",label:"Included in Rotation",type:"checkbox"},
   {key:"screens",label:"Screens",placeholder:"rotation only; blank = every screen; e.g. 2, 7-10, lobby"}];
+
+// Markdown (the Notes, Date related notes and Credits fields) to a DOM fragment. "marked" is the parser, passed in by the page (it comes from an npm: import,
+// which only a notebook cell can do). Single newlines stay line breaks, so notes typed as plain text still look the same.
+// Raw HTML in the text is shown as text, and only http(s)/mailto links survive, opening in a new tab.
+export function markdownFragment(marked, text) {
+  const tpl = document.createElement("template");
+  tpl.innerHTML = marked.parse(String(text ?? ""), {breaks: true, gfm: true, renderer: new marked.Renderer()});
+  for (const el of tpl.content.querySelectorAll("script,style,iframe,object,embed,form,link,meta")) el.remove();
+  for (const el of tpl.content.querySelectorAll("*")) {
+    for (const a of [...el.attributes]) {
+      if (/^on/i.test(a.name) || (["href", "src"].includes(a.name) && !/^(https?:|mailto:|#)/i.test(a.value.trim()))) el.removeAttribute(a.name);
+    }
+    if (el.tagName === "A") { el.target = "_blank"; el.rel = "noopener"; }
+  }
+  return tpl.content;
+}
 
 // Screens: each has a number (1, 2, 3...) and a slug (lowercase, starts with a letter, e.g. "lobby"), so a slug can never be
 // mistaken for a number or a range. A screen is named in a URL (?s=2 or ?s=lobby) and in an item's Screens text.

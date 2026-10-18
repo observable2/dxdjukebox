@@ -4,7 +4,8 @@
   
   <script id="1" type="module">
     import {repo} from "./config.js";
-    import {watchCurrent, formatDuration, screenRefFromURL, screenQuery, FIELDS} from "./lib.js";
+    import {watchCurrent, formatDuration, screenRefFromURL, screenQuery, markdownFragment, FIELDS} from "./lib.js";
+    import {marked} from "npm:marked@15.0.12";
 
     const screenLink = page.querySelector("#screen-link");
     const heading = page.querySelector("#heading");
@@ -61,6 +62,8 @@
           a.rel = "noopener";
           a.textContent = value;
           dd.replaceChildren(a);
+        } else if (f.type === "markdown") {
+          dd.replaceChildren(markdownFragment(marked, value));
         } else {
           dd.textContent = value;
         }
@@ -114,6 +117,17 @@
         white-space: pre-wrap;
         overflow-wrap: anywhere;   /* long URLs and other unbroken text wrap instead of forcing horizontal scroll */
       }
+      /* Markdown fields (notes, date related notes, credits), rendered as real elements, so they wrap normally instead of pre-wrap */
+      #titles dd.md { white-space: normal; }
+      dd.md p, dd.md ul, dd.md ol, dd.md blockquote, dd.md pre, dd.md h1, dd.md h2, dd.md h3, dd.md h4 {
+        margin: 0 0 0.6em;   /* bottom only: custom.tmpl forces margin-top:0 !important on everything */
+      }
+      dd.md > :last-child { margin-bottom: 0; }
+      dd.md ul, dd.md ol { padding-left: 1.4em; }
+      dd.md h1, dd.md h2, dd.md h3, dd.md h4 { font-size: 1em; }
+      dd.md blockquote { padding-left: 0.8em; border-left: 3px solid #ccc; color: #666; }
+      dd.md pre, dd.md code { font-family: var(--monospace); font-size: 0.85em; }
+      dd.md pre { overflow-x: auto; white-space: pre; }
       /* dimmer values (links included), except the primary fields: authorship, yearCreated, notes (title is the heading) */
       #titles dd:not(#authorshipValue, #yearCreatedValue, #notesValue) {
         color: #888;
@@ -186,11 +200,11 @@
       <dl id="fields">
         <dt id="authorship"></dt><dd id="authorshipValue"></dd>
         <dt id="yearCreated"></dt><dd id="yearCreatedValue"></dd>
-        <dt id="dateRelatedNotes"></dt><dd id="dateRelatedNotesValue"></dd>
+        <dt id="dateRelatedNotes"></dt><dd id="dateRelatedNotesValue" class="md"></dd>
         <dt id="media">composition media</dt><dd id="mediaValue"></dd>
         <dt id="url"></dt><dd id="urlValue"></dd>
-        <dt id="notes"></dt><dd id="notesValue"></dd>
-        <dt id="credits">references<br>&amp; thanks</dt><dd id="creditsValue"></dd>
+        <dt id="notes"></dt><dd id="notesValue" class="md"></dd>
+        <dt id="credits">references<br>&amp; thanks</dt><dd id="creditsValue" class="md"></dd>
         <dt id="duration">duration</dt><dd id="durationValue" style="font-family: var(--monospace); font-size: .85em;"></dd>
         <dt id="furtherInfoURL">further information</dt><dd id="furtherInfoURLValue"></dd>
         <dt id="license">license</dt><dd id="licenseValue"></dd>

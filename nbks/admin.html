@@ -4,8 +4,10 @@
   <script id="1" type="module">
     import {repo} from "./config.js";
     import {mountAdmin} from "./admin.js";
+    import {markdownFragment} from "./lib.js";
+    import {marked} from "npm:marked@15.0.12";
 
-    mountAdmin(page, repo, html);
+    mountAdmin(page, repo, html, (text) => markdownFragment(marked, text));
   </script>
 
   <script id="3" type="text/html">

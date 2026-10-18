@@ -1,8 +1,9 @@
-// The Admin page. mountAdmin(root, repo, html): "html" is the htl template tag, passed in by the page.
+// The Admin page. mountAdmin(root, repo, html, renderMarkdown): "html" is the htl template tag, passed in by the page;
+// renderMarkdown(text) returns a DOM fragment (used for the Markdown field's preview).
 // Returns a promise that resolves once the first load has been drawn.
 import {FIELDS, DAYS, todayISO, stepRotation, onScreen} from "./lib.js";
 
-export function mountAdmin(root, repo, html) {
+export function mountAdmin(root, repo, html, renderMarkdown) {
   const ad = repo.adapter;
   const st = {
     data: {items: [], slots: [], screens: [], screen: null, pinnedItemId: null},
@@ -91,6 +92,66 @@ export function mountAdmin(root, repo, html) {
       ${manage}</section>`;
   }
 
+  // A Markdown field: a toolbar of formatting buttons over the textarea, and a Write/Preview switch. The buttons wrap the
+  // selected text (or insert a placeholder) with Markdown marks; Ctrl/Cmd-B, -I and -K do bold, italic and link.
+  function markdownField(f, ta, ro) {
+    const wrap = (before, after, ph) => {
+      const {selectionStart: a, selectionEnd: b, value} = ta, sel = value.slice(a, b) || ph;
+      ta.setRangeText(before + sel + after, a, b, "end");
+      ta.setSelectionRange(a + before.length, a + before.length + sel.length);
+      ta.focus();
+    };
+    // prefix every selected line (or the current one), e.g. "- " for a list; "1. " numbers them
+    const lines = (prefix) => {
+      const v = ta.value, a = v.lastIndexOf("\n", ta.selectionStart - 1) + 1;
+      let e = v.indexOf("\n", ta.selectionEnd); if (e < 0) e = v.length;
+      const out = v.slice(a, e).split("\n").map((l, i) => (prefix === "1. " ? i + 1 + ". " : prefix) + l).join("\n");
+      ta.setRangeText(out, a, e, "select");
+      ta.focus();
+    };
+    const link = () => {
+      const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd) || "link text";
+      const url = prompt("Link address (URL):", "https://");
+      if (url) { ta.setRangeText(`[${sel}](${url})`, ta.selectionStart, ta.selectionEnd, "end"); ta.focus(); }
+    };
+    const actions = {b: () => wrap("**", "**", "bold"), i: () => wrap("*", "*", "italic"), k: link};
+    ta.addEventListener("keydown", (e) => {
+      const fn = (e.metaKey || e.ctrlKey) && !e.altKey && actions[e.key.toLowerCase()];
+      if (fn) { e.preventDefault(); fn(); }
+    });
+    const preview = html`<div class="md-preview" hidden></div>`;
+    const btn = (label, title, fn, style = "") => html`<button type=button title=${title} disabled=${ro} style=${style} onclick=${fn}>${label}</button>`;
+    const tools = html`<span>${btn("B", "Bold (Ctrl/Cmd-B)", actions.b, "font-weight:bold")}
+      ${btn("I", "Italic (Ctrl/Cmd-I)", actions.i, "font-style:italic")}
+      ${btn("Link", "Link (Ctrl/Cmd-K)", link)}
+      ${btn("• List", "Bulleted list", () => lines("- "))}
+      ${btn("1. List", "Numbered list", () => lines("1. "))}
+      ${btn("❝ Quote", "Quotation", () => lines("> "))}</span>`;
+    const show = (previewing) => {
+      if (previewing) preview.replaceChildren(renderMarkdown(ta.value));
+      preview.hidden = !previewing; ta.hidden = !previewing ? false : true; tools.hidden = previewing;
+      write.disabled = !previewing; prev.disabled = previewing;
+    };
+    const write = html`<button type=button disabled onclick=${() => show(false)}>Write</button>`;
+    const prev = html`<button type=button onclick=${() => show(true)}>Preview</button>`;
+    // rows is the textarea's height in lines; the preview gets the same height (a line is about 1.4em)
+    const height = (f.rows ?? 8) * 1.4 + 0.6 + "em";
+    ta.style.resize = (f.rows ?? 8) > 3 ? "vertical" : "none"; preview.style.height = height;
+    return html`<div class="md-field" style="grid-column:span 2">
+      <style>
+        .md-field .bar { display: flex; gap: 6px; justify-content: space-between; margin-bottom: 4px; font-family: var(--sans-serif); font-size: 0.8em; }
+        .md-field .bar button { font-size: inherit; padding: 1px 8px; }
+        .md-field .md-preview { border: 1px solid #ccc; padding: 4px 8px; overflow: auto; font-size: 0.9em; }
+        .md-field .md-preview > :last-child { margin-bottom: 0; }
+        .md-field .md-preview p, .md-field .md-preview ul, .md-field .md-preview ol, .md-field .md-preview blockquote { margin: 0 0 0.6em; }
+        .md-field .md-preview blockquote { padding-left: 0.8em; border-left: 3px solid #ccc; color: #666; }
+        .md-field .hint { color: #777; font-size: 0.75em; font-family: var(--sans-serif); }
+      </style>
+      <div class="bar"><span><b>${f.label}</b> <small style="color:#777">(${f.key}, Markdown)</small></span>${tools}<span>${write}${prev}</span></div>
+      ${ta}${preview}
+      <div class="hint">Markdown: **bold**, *italic*, [text](url), "- " bullets, "1. " numbered, "> " quote; a blank line starts a new paragraph.</div></div>`;
+  }
+
   function itemsPanel() {
     const ro = !ad.canWrite, ed = st.editing, inputs = {};
     // Compact form: two columns of fields, each label to the left of its field in the sans-serif (Inter) face, which is
@@ -105,7 +166,8 @@ export function mountAdmin(root, repo, html) {
         .item-form input[type=checkbox] { margin: 0; justify-self: start; }
       </style></form>`;
     for (const f of FIELDS) {
-      const el = f.type === "textarea" ? html`<textarea rows=2></textarea>`
+      const el = f.type === "markdown" ? html`<textarea rows=${f.rows ?? 8}></textarea>`
+        : f.type === "textarea" ? html`<textarea rows=2></textarea>`
         : f.type === "select" ? html`<select>${f.options.map((o) => html`<option value=${o}>${o}</option>`)}</select>`
         : html`<input type=${f.type ?? "text"}>`;
       // A duration that only comes from the item's first slot is shown as a placeholder, not as a value,
@@ -118,6 +180,7 @@ export function mountAdmin(root, repo, html) {
       el.placeholder = fromSlot ? "default: " + ed.duration + " (length of first slot)" : (f.placeholder ?? "");
       if (!isBox) el.style.width = "100%";
       inputs[f.key] = el;
+      if (f.type === "markdown") { form.append(markdownField(f, el, ro)); continue; }
       form.append(html`<label class=${f.type === "textarea" ? "tall" : ""} style="${f.type === "textarea" ? "grid-column:span 2" : ""}"><span>${f.label}${f.required ? " *" : ""} <small>(${f.key})</small></span>${el}</label>`);
     }
     form.append(html`<div style="grid-column:span 2"><button disabled=${ro}>${ed.id ? "Update item" : "Add item"}</button>

@@ -11,6 +11,8 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
     editingScreen: {},                 // the screen in the screens form ({} = a new one)
     editing: {},                       // the item in the form ({} = a new one)
     listOpen: true,                    // whether the items list is expanded, kept between redraws
+    rotOpen: false,                    // whether the rotation list is expanded, kept between redraws
+    slotsOpen: false,                  // whether the manual slots list is expanded, kept between redraws
     screensOpen: false,                // likewise for Manage screens
     slot: {itemId: "", days: [], start: "09:00", end: "10:00", weeks: 1, from: todayISO()},   // the slot form, kept between redraws
     search: "",                        // items-table filter text, kept between redraws
@@ -37,7 +39,7 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
     root.replaceChildren(
       ...(ad.canWrite ? [] : [signIn()]),
       html`<p class="admin-msg" style="color:crimson">${st.msg}</p>`,
-      screensPanel(), itemsPanel(), rotationPanel(), schedulePanel(), pinPanel());
+      ...[screensPanel(), itemsPanel(), rotationPanel(), schedulePanel(), pinPanel()].flatMap((p) => [p, html`<hr style="border:0;background:none;height:0;padding:0;border-top:2px solid #888;margin:20px 0">`]));
   }
 
   function signIn() {
@@ -81,7 +83,7 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
           if (!confirm("Delete screen " + s.number + " (" + s.slug + ") and its slots? Items are kept.")) return;
           await repo.deleteScreen(s.id); await refresh();
         })}>Delete</button></td></tr>`;
-    const manage = html`<details style="margin-top:6px" open=${st.screensOpen}><summary>Manage screens (${screens.length})</summary>${form}
+    const manage = html`<details style="margin-top:6px;margin-bottom:12px" open=${st.screensOpen}><summary>Manage screens (${screens.length})</summary>${form}
         <p style="color:#666;margin:6px 0">A screen has a number and a slug, each unique. An item's Screens text (for rotation) can use numbers, ranges and slugs: <code>2, 7-10, lobby</code>. A page with no <code>?s=</code> shows the lowest-numbered screen. Deleting a screen deletes its slots.</p>
         <table style="width:100%"><tr><th align=left>Number</th><th align=left>Slug</th><th align=left>Name</th><th></th></tr>${screens.map(row)}</table></details>`;
     manage.ontoggle = () => { st.screensOpen = manage.open; };   // only the arrow opens or closes it; redraws keep it as it was
@@ -217,7 +219,7 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
     const tbody = html`<tbody>${rowsFor(st.search.trim().toLowerCase())}</tbody>`;
     const search = html`<input type=search placeholder="Find an item by title or authorship…" style="width:100%" value=${st.search}
       oninput=${() => { st.search = search.value; tbody.replaceChildren(...rowsFor(st.search.trim().toLowerCase())); }}>`;
-    const list = html`<details style="margin-top:10px" open=${st.listOpen}><summary>Item list (${st.data.items.length})</summary>
+    const list = html`<details style="margin-top:10px;margin-bottom:12px" open=${st.listOpen}><summary>Item list (${st.data.items.length})</summary>
       <div style="margin-top:6px">${search}</div>
       <style>
         .items-list th, .items-list td { padding: 2px 8px 2px 0; text-align: left; vertical-align: middle; }   /* same for headings and values, so they line up */
@@ -249,15 +251,18 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
       if (!confirm("Set \"Included in Rotation\" to false for ALL items? (An existing rotation's slots are not touched.)")) return;
       await repo.resetRotationFlags(); await refresh();
     });
+    const rotList = inRotation.length
+      ? html`<details style="margin-top:8px;margin-bottom:12px" open=${st.rotOpen}><summary>Rotation list (${inRotation.length} item${inRotation.length === 1 ? "" : "s"})</summary>
+          <table style="width:100%"><tr><th align=left>Item in rotation (title / authorship)</th><th align=left>Slot duration</th></tr>${inRotation.map((r) => html`<tr><td>${r.title}</td><td>${r.len} min</td></tr>`)}</table></details>`
+      : html`<p style="color:#666">No rotation is currently scheduled.</p>`;
+    rotList.ontoggle = () => { st.rotOpen = rotList.open; };
     return html`<section><h3>Rotation${screenTitle()}</h3>
       <div>Slot duration ${minutes} minutes
         <button disabled=${ro} onclick=${generate}>Generate rotation</button>
         <button disabled=${ro} onclick=${clear}>Clear rotation</button>
         <button disabled=${ro} onclick=${reset}>Set all items' rotation to false</button></div>
       <p style="color:#666;margin:6px 0">Generate rotation fills every day with back-to-back slots cycling through the ${flagged.length} item${flagged.length === 1 ? "" : "s"} flagged Included in Rotation whose Screens text includes this screen (blank = every screen; the cycle restarts at midnight), replacing this screen's previous rotation. Manual slots are kept and take priority over the rotation while they apply; an item whose turn falls under a manual slot is skipped for that time. Clear rotation removes only this screen's generated slots; item flags are kept.</p>
-      ${inRotation.length
-        ? html`<table style="width:100%"><tr><th align=left>Item in rotation (title / authorship)</th><th align=left>Slot duration</th></tr>${inRotation.map((r) => html`<tr><td>${r.title}</td><td>${r.len} min</td></tr>`)}</table>`
-        : html`<p style="color:#666">No rotation is currently scheduled.</p>`}</section>`;
+      ${rotList}</section>`;
   }
 
   function schedulePanel() {
@@ -281,11 +286,14 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
       <td>${s.days.map((d) => DAYS[d]).join(" ")}</td>
       <td>${s.weeks ? s.weeks + " wk from " : "every week from "}${s.from}</td>
       <td><button disabled=${ro} onclick=${guard(async () => { await repo.deleteSlot(s.id); await refresh(); })}>Remove</button></td></tr>`);
+    const slotList = html`<details style="margin-top:8px;margin-bottom:12px" open=${st.slotsOpen}><summary>Manual slots (${rows.length})</summary>
+      <table style="width:100%;margin-top:4px"><tr><th align=left>Time</th><th align=left>Item</th><th align=left>Days</th><th align=left>Span</th><th></th></tr>${rows}</table></details>`;
+    slotList.ontoggle = () => { st.slotsOpen = slotList.open; };
     return html`<section><h3>Schedule${screenTitle()} (manual slots; a generated rotation is summarized above)</h3>
       <div>${item} from ${start} until ${end} on ${days}</div>
       <div>Repeat for ${weeks} weeks (0 = indefinitely), starting week of ${from} <button disabled=${ro} onclick=${add}>Add slot</button></div>
       <p style="color:#666;margin:6px 0">An item can have any number of slots. Times not covered by any slot are unscheduled: Screen and Titles show "Nothing scheduled". Slots may touch (10:00 end, 10:00 start) but not overlap each other on the same screen (screens are independent); a manual slot may sit on top of a generated rotation and overrides it. An item with no Duration of its own uses the length of its first slot.</p>
-      <table style="width:100%;margin-top:8px"><tr><th align=left>Time</th><th align=left>Item</th><th align=left>Days</th><th align=left>Span</th><th></th></tr>${rows}</table></section>`;
+      ${slotList}</section>`;
   }
 
   // Show now: one item that Screen and Titles show immediately, over every slot, until it is cleared.

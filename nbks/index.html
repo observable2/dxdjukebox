@@ -4,7 +4,7 @@
   
   <script id="1" type="module">
     import {repo} from "./config.js";
-    import {watchCurrent, formatDuration, screenRefFromURL, screenQuery, markdownFragment, FIELDS} from "./lib.js";
+    import {watchCurrent, formatDuration, screenRefFromURL, screenQuery, markdownFragment, FIELDS, stepRotation, currentInfo} from "./lib.js";
     import {marked} from "npm:marked@15.0.12";
 
     const screenLink = page.querySelector("#screen-link");
@@ -89,12 +89,46 @@
     }
     setInterval(drawScreenLink, 1000);
 
+    // Screen 2 ("studio") only: ← / → step through the rotation (a Show now for the previous / next item, as the Admin page's
+    // Previous / Next do) and "schedule" (or Esc) returns to the schedule. No sign-in: repo.studioPin calls a database function
+    // that only pins an item of screen 2's generated rotation (see schema.sql), so any visitor can use these controls.
+    let steppable = false;
+    const stepMessage = page.querySelector("#step-message");
+    async function control(dir) {   // dir: -1 previous, 1 next, 0 back to the schedule
+      try {
+        stepMessage.textContent = "";
+        let id = null;
+        if (dir) {
+          id = stepRotation(await repo.load(screenRef), dir);
+          if (!id) { stepMessage.textContent = "No generated rotation to step through"; return; }
+        }
+        await repo.studioPin(id);
+        // show the result now rather than at the next poll
+        const info = currentInfo(await repo.load(screenRef));
+        timing = info.item ? info : null;   // the corner link: "until further notice" when pinned, time on screen when back on the schedule
+        if (info.item) showItem(info.item); else showMessage("Nothing is scheduled at this time.", false);
+        drawScreenLink();
+      } catch (e) { stepMessage.textContent = e.message; }
+    }
+    page.querySelector("#step-prev").onclick = () => control(-1);
+    page.querySelector("#step-next").onclick = () => control(1);
+    page.querySelector("#step-reset").onclick = () => control(0);
+    document.addEventListener("keydown", (e) => {
+      if (!steppable || e.altKey || e.ctrlKey || e.metaKey || e.target.closest("input, textarea, select")) return;
+      const dir = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : e.key === "Escape" ? 0 : null;
+      if (dir === null) return;
+      e.preventDefault();
+      control(dir);
+    });
+
     watchCurrent(repo,
       (item) => (item ? showItem(item) : showMessage("Nothing is scheduled at this time.", false)),
       (error) => { timing = null; drawScreenLink(); showMessage(error, true); },
       undefined,
       (info) => {
         timing = info.item ? info : null; drawScreenLink();
+        steppable = info.screen.number === 2 || info.screen.slug === "studio";
+        page.querySelector("#step-controls").style.display = steppable ? "" : "none";
         // screen 4 (slug "gallery") is the Distributed Gallery: its h3 says so, whether or not something is showing
         if (info.screen.number === 4 || info.screen.slug === "gallery") siteTitle.textContent = "The Distributed Gallery";
         screenLink.href = "https://dxdj.programmatology.com/screen" + screenQuery(info.screen);
@@ -214,6 +248,12 @@
       </dl>
       <div id="message"></div>
     </div>
+    <div id="step-controls" style="display:none;position:fixed;left:1em;bottom:0.75em;font-size:0.9em">
+      <button id="step-prev" type="button" title="Previous in rotation (←)">&larr;</button>
+      <button id="step-next" type="button" title="Next in rotation (→)">&rarr;</button>
+      <button id="step-reset" type="button" title="Back to the schedule (Esc)">schedule</button>
+    </div>
+    <div id="step-message" style="position:fixed;left:1em;bottom:3em;font-size:0.7em;color:crimson"></div>
     <div id="site-link"><a id="screen-link" href="https://dxdj.programmatology.com/screen">Screen</a></div>
   </script>
 </notebook>

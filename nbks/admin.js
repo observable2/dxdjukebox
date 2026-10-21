@@ -137,10 +137,13 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
     const write = html`<button type=button disabled onclick=${() => show(false)}>Write</button>`;
     const prev = html`<button type=button onclick=${() => show(true)}>Preview</button>`;
     // rows is the textarea's height in lines; the preview gets the same height (a line is about 1.4em)
-    const height = (f.rows ?? 8) * 1.4 + 0.6 + "em";
+    const height = "calc(" + (f.rows ?? 8) + " * var(--monospace-line) + 12px)";   // as tall as the textarea, whose lines are --monospace-line high
     ta.style.resize = (f.rows ?? 8) > 3 ? "vertical" : "none"; preview.style.height = height;
     return html`<div class="md-field" style="grid-column:span 2">
       <style>
+        /* Write mode uses the font Observable shows when editing Markdown in a cell (--monospace-font, 14px/1.5) */
+        .md-field { --monospace-line: 21px; }
+        .item-form .md-field textarea { font: var(--monospace-font); }
         .md-field .bar { display: flex; gap: 6px; justify-content: space-between; margin-bottom: 4px; font-family: var(--sans-serif); font-size: 0.8em; }
         .md-field .bar button { font-size: inherit; padding: 1px 8px; }
         .md-field .md-preview { border: 1px solid #ccc; padding: 4px 8px; overflow: auto; font-size: 0.9em; }
@@ -261,7 +264,7 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
         <button disabled=${ro} onclick=${generate}>Generate rotation</button>
         <button disabled=${ro} onclick=${clear}>Clear rotation</button>
         <button disabled=${ro} onclick=${reset}>Set all items' rotation to false</button></div>
-      <p style="color:#666;margin:6px 0">Generate rotation fills every day with back-to-back slots cycling through the ${flagged.length} item${flagged.length === 1 ? "" : "s"} flagged Included in Rotation whose Screens text includes this screen (blank = every screen; the cycle restarts at midnight), replacing this screen's previous rotation. Manual slots are kept and take priority over the rotation while they apply; an item whose turn falls under a manual slot is skipped for that time. Clear rotation removes only this screen's generated slots; item flags are kept.</p>
+      <p style="color:#666;margin:6px 0">Generate rotation fills every day with back-to-back slots cycling through the ${flagged.length} item${flagged.length === 1 ? "" : "s"} flagged Included in Rotation whose Screens text includes this screen ("all" = every screen, blank = none; the cycle restarts at midnight), replacing this screen's previous rotation. Manual slots are kept and take priority over the rotation while they apply; an item whose turn falls under a manual slot is skipped for that time. Clear rotation removes only this screen's generated slots; item flags are kept.</p>
       ${rotList}</section>`;
   }
 

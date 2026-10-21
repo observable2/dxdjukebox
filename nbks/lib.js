@@ -45,7 +45,7 @@ export const FIELDS = [
   {key:"course",label:"Course"},{key:"mentor",label:"Mentor"},{key:"license",label:"License"},
   {key:"credits",label:"Credits",type:"markdown",rows:2},
   {key:"rotation",label:"Included in Rotation",type:"checkbox"},
-  {key:"screens",label:"Screens",placeholder:"rotation only; blank = every screen; e.g. 2, 7-10, lobby"}];
+  {key:"screens",label:"Screens",placeholder:"rotation only; all = every screen, blank = none; e.g. 2, 7-10, lobby"}];
 
 // Markdown (the Notes, Date related notes and Credits fields) to a DOM fragment. "marked" is the parser, passed in by the page (it comes from an npm: import,
 // which only a notebook cell can do). Single newlines stay line breaks, so notes typed as plain text still look the same.
@@ -77,15 +77,18 @@ export function findScreen(screens, ref) {
   if (!r) return sorted[0];
   return /^\d+$/.test(r) ? sorted.find((s) => s.number === +r) : sorted.find((s) => s.slug === r);
 }
-// An item's Screens text, e.g. "2, 7-10, lobby" -> [[2,2],[7,10],[lobby's number, same]]. Blank -> null, meaning every screen.
+// An item's Screens text, e.g. "2, 7-10, lobby" -> [[2,2],[7,10],[lobby's number, same]]. "all" -> null, meaning every screen.
+// Blank -> [], meaning no screen. ("all" is reserved, so no screen can have it as its slug.)
 // slugs maps slug -> number. An unknown slug is an error unless strict is false (then it is ignored).
 export function parseScreens(text, slugs = {}, strict = true) {
   const ranges = [];
+  let all = false;
   for (const raw of String(text ?? "").split(",")) {
     const tok = raw.trim().toLowerCase();
     if (!tok) continue;
     let m;
-    if ((m = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(tok))) {
+    if (tok === "all") all = true;
+    else if ((m = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(tok))) {
       const lo = +m[1], hi = m[2] === undefined ? lo : +m[2];
       if (lo < 1 || hi < lo) throw new Error('Screens: "' + raw.trim() + '" is not a valid number or range (screens start at 1; a range runs low-high)');
       ranges.push([lo, hi]);
@@ -94,9 +97,9 @@ export function parseScreens(text, slugs = {}, strict = true) {
       else if (strict) throw new Error('Screens: there is no screen with the slug "' + tok + '"');
     } else throw new Error('Screens: cannot read "' + raw.trim() + '"; use screen numbers, ranges like 7-10, or slugs, separated by commas');
   }
-  return ranges.length ? ranges : null;
+  return all ? null : ranges;
 }
-// Does an item's Screens text include this screen number? (blank = yes)
+// Does an item's Screens text include this screen number? ("all" = yes, blank = no)
 export const onScreen = (text, number, slugs) => {
   const ranges = parseScreens(text, slugs, false);
   return !ranges || ranges.some(([lo, hi]) => lo <= number && number <= hi);

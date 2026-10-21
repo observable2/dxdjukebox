@@ -17,7 +17,8 @@ create table jukebox_items (
   rotation boolean not null default false,
   hide_url boolean not null default false,
   further_info_url text,
-  screens text,   -- which screens a rotation may use this item on: numbers, ranges, slugs (2, 7-10, lobby); blank = every screen
+  screens text,   -- which screens a rotation may use this item on: numbers, ranges, slugs (2, 7-10, lobby); all = every screen; blank = none
+                  -- (an existing database should keep its items on every screen with: update jukebox_items set screens = 'all' where coalesce(trim(screens), '') = '';)
   updated_at timestamptz default now()
 );
 create table jukebox_screens (
@@ -58,6 +59,24 @@ create policy "admin write screens" on jukebox_screens for all to authenticated 
 grant usage on schema public to anon, authenticated;
 grant select on jukebox_items, jukebox_slots, jukebox_screens to anon, authenticated;
 grant insert, update, delete on jukebox_items, jukebox_slots, jukebox_screens to authenticated;
+
+-- Public control of screen 2 ("studio"): the left/right/schedule buttons on Titles (?s=studio) work without signing in by
+-- calling this function, which runs with its owner's rights. It can only pin an item that is in screen 2's generated
+-- rotation (or clear the pin), so a visitor cannot pin anything else or touch any other screen. An existing database needs
+-- this block run once.
+create or replace function studio_pin(p_item uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare s uuid;
+begin
+  select id into s from jukebox_screens where number = 2;
+  if s is null then raise exception 'There is no screen 2'; end if;
+  if p_item is not null and not exists (
+    select 1 from jukebox_slots where screen_id = s and rotation and item_id = p_item
+  ) then raise exception 'That item is not in the studio rotation'; end if;
+  update jukebox_screens set pinned_item_id = p_item where id = s;
+end $$;
+revoke all on function studio_pin(uuid) from public;
+grant execute on function studio_pin(uuid) to anon, authenticated;
 
 -- ---------------------------------------------------------------------------------------------------------------------
 -- An EXISTING database (made before screens) needs this block instead of re-running the above. Run it once, as a whole.

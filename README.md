@@ -77,7 +77,7 @@ Security comes from row-level security in `schema.sql`: anyone can read, and onl
 | License | no | |
 | Credits | no | |
 | Included in Rotation | no | checkbox (default off, key `rotation`); items ticked here are cycled by **Generate rotation** |
-| Screens | no | key `screens`; which screens a rotation may use this item on: screen numbers, ranges and slugs separated by commas, e.g. `2, 7-10, lobby`. Blank means every screen. Only the rotation looks at it; manual slots and Show now can use any item on any screen |
+| Screens | no | key `screens`; which screens a rotation may use this item on: screen numbers, ranges and slugs separated by commas, e.g. `2, 7-10, lobby`. `all` means every screen and blank (the default) means none. Only the rotation looks at it; manual slots and Show now can use any item on any screen |
 
 Only Title, URL and Year created are required.
 
@@ -105,7 +105,7 @@ One installation can run any number of screens, each with its own schedule, rota
 
 ## Rotation
 
-The **Rotation** section of the Admin page fills the chosen screen's schedule automatically from the items ticked "Included in Rotation" whose Screens text includes that screen (or is blank).
+The **Rotation** section of the Admin page fills the chosen screen's schedule automatically from the items ticked "Included in Rotation" whose Screens text includes that screen (or is `all`).
 
 - **Slot duration** (default 10 minutes; whole minutes in multiples of 5).
 - **Generate rotation** removes the chosen screen's previous rotation (other screens' are untouched) and creates back-to-back slots for every day, 00:00 to 24:00, repeating weekly with no end date from today. They cycle through the flagged items in title order, and the cycle restarts at midnight. If the duration does not divide the day evenly, the last slot of the day is shorter. It needs at least one flagged item.
@@ -120,6 +120,15 @@ The **Rotation** section of the Admin page fills the chosen screen's schedule au
 ## Show now
 
 The **Show now** section at the bottom of the Admin page picks one item to appear on the chosen screen's Screen and Titles immediately and keep appearing until **Stop showing** is pressed. It beats every slot, manual or generated, the same way a manual slot beats the rotation. Nothing is added to or removed from the schedule, so the slots and the rotation resume as they were once it is cleared. At most one item is pinned per screen; choosing another replaces it. **Previous** and **Next** buttons do a Show now for the item before or after the one showing, going around the generated rotation's cycle (the rotation's items in the order they appear through the day, wrapping at the ends); **Reset to schedule** clears the pin, same as Stop showing. They change nothing in the schedule. The pin is the `pinned_item_id` column on `jukebox_screens`, and deleting the pinned item clears it.
+
+### Public controls for screen 2 ("studio")
+
+On Titles for screen 2 (`/?s=studio`) three small buttons at the bottom left, **←**, **→** and **schedule**, let any visitor, signed in or not, step through the rotation. The **←** and **→** arrow keys and **Esc** do the same. ← and → do a Show now for the previous or next item in the rotation, as the Admin page's Previous and Next do, and **schedule** (Esc) clears the pin so the schedule takes over. Other screens do not show them.
+
+- Writes normally need the admin sign-in, so these call a database function, `studio_pin(p_item uuid)` (defined in `schema.sql`; an existing database needs that block run once in the Supabase SQL editor). It runs with its owner's rights, is callable by `anon`, and can only pin an item that is in screen 2's *generated rotation*, or clear the pin. Nothing else on any screen can be changed through it. It is wired to screen number 2; change the number in the function to move it. In the browser it is `repo.studioPin(itemId)`.
+- It needs a generated rotation for screen 2 (Admin > Rotation), or it says "No generated rotation to step through".
+- **Not done yet: auto-expiry.** A pin set this way stays until someone presses **schedule** (or an admin uses Stop showing / Reset to schedule), so a visitor who walks away leaves the screen on their choice. A "pinned until" time on `jukebox_screens`, honoured by `pickCurrent`, would let the schedule resume by itself after, say, ten minutes.
+- Anyone who has the page's public key can call the function directly, so a hostile visitor could keep stepping the studio rotation. It cannot do anything else.
 
 ## Customizing the Titles page
 

@@ -68,7 +68,9 @@ export function supabaseAdapter({url, anonKey}) {
     // Bulk operations. "where" is {column: value}; PostgREST refuses an unfiltered delete/patch, so "every row" is id-not-null.
     async insertMany(t, rows) { await call(tbl(t), {method: "POST", body: JSON.stringify(rows)}); },
     async removeAll(t, where = {}) { await call(tbl(t) + "?" + filterOf(where), {method: "DELETE"}); },
-    async updateAll(t, row) { await call(tbl(t) + "?id=not.is.null", {method: "PATCH", body: JSON.stringify(row)}); }
+    async updateAll(t, row) { await call(tbl(t) + "?id=not.is.null", {method: "PATCH", body: JSON.stringify(row)}); },
+    // A database function (see schema.sql) that anyone may call, signed in or not
+    async rpc(name, args) { await call("rpc/" + name, {method: "POST", body: JSON.stringify(args)}); }
   };
 }
 
@@ -93,6 +95,12 @@ export function localAdapter(key = "dxd-jukebox-dev") {
     async insertMany(t, rows) { const d = read(); d[t].push(...rows.map((r) => ({id: crypto.randomUUID(), ...r}))); write(d); },
     async removeAll(t, where = {}) { const d = read(); d[t] = d[t].filter((x) => !Object.entries(where).every(([k, v]) => x[k] === v)); write(d); },
     async updateAll(t, row) { const d = read(); d[t] = d[t].map((x) => ({...x, ...row})); write(d); },
+    async rpc(name, {p_item}) {   // only studio_pin exists: pins an item of screen 2's rotation, as the database function does
+      const d = read(), s = d.screen.find((x) => x.number === 2);
+      if (!s) throw new Error("There is no screen 2");
+      if (p_item && !d.slot.some((x) => x.screen_id === s.id && x.rotation && x.item_id === p_item)) throw new Error("That item is not in the studio rotation");
+      s.pinned_item_id = p_item ?? null; write(d);
+    },
     async remove(t, id) {
       const d = read(); d[t] = d[t].filter((x) => x.id !== id);
       if (t === "item") { d.slot = d.slot.filter((s) => s.item_id !== id); d.screen = d.screen.map((s) => s.pinned_item_id === id ? {...s, pinned_item_id: null} : s); }
@@ -163,6 +171,7 @@ export function createRepo(adapter) {
     async saveScreen(screen) {
       const s = {id: screen.id, number: Number(screen.number), slug: str(screen.slug).toLowerCase(), name: str(screen.name), showTitlesLink: screen.showTitlesLink !== false};
       if (!Number.isInteger(s.number) || s.number < 1) throw new Error("Screen number must be a whole number, 1 or more");
+      if (s.slug === "all") throw new Error('Screen slug "all" is reserved (in an item\'s Screens text it means every screen)');
       if (!validSlug(s.slug)) throw new Error("Screen slug must be lowercase letters, digits and hyphens, starting with a letter, e.g. lobby");
       const others = (await screensOf()).filter((o) => o.id !== s.id);
       if (others.some((o) => o.number === s.number)) throw new Error("Screen number " + s.number + " is already used");
@@ -190,7 +199,7 @@ export function createRepo(adapter) {
     },
     deleteSlot: (id) => adapter.remove("slot", id),
     // Rotation, for one screen: replaces that screen's previous rotation with back-to-back slots cycling through the items
-    // flagged rotation=true whose Screens text includes the screen (blank = every screen). Manual slots are kept and win
+    // flagged rotation=true whose Screens text includes the screen ("all" = every screen, blank = none). Manual slots are kept and win
     // over rotation slots where they overlap (see currentInfo). The old rotation slots are removed first, so a failed
     // insert leaves no rotation.
     async generateRotation(minutes, screenId) {
@@ -210,6 +219,8 @@ export function createRepo(adapter) {
     // Pinning, per screen: a screen has at most one pinned item. It is what that screen's Screen and Titles show, over any
     // slot, until unpinned. Slots and the rotation are not touched.
     pinItem: (screenId, itemId) => adapter.update("screen", screenId, {pinned_item_id: itemId}),
-    unpinItem: (screenId) => adapter.update("screen", screenId, {pinned_item_id: null})
+    unpinItem: (screenId) => adapter.update("screen", screenId, {pinned_item_id: null}),
+    // Public (no sign-in) control of screen 2 ("studio"): pins an item of its generated rotation, or null to clear the pin
+    studioPin: (itemId) => adapter.rpc("studio_pin", {p_item: itemId ?? null})
   };
 }

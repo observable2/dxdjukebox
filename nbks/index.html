@@ -17,11 +17,12 @@
     const screenRef = screenRefFromURL();
 
     const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    // yearCreated shows as "14 March 2024" when monthDayCreated (stored as "M/D") is set, otherwise just the year
+    // yearCreated shows as "14 March 2024" when monthDayCreated (stored as "M/D") is set, "March 2024" when it is just a month
+    // ("M"), otherwise just the year
     function createdText(item) {
       if (!item.monthDayCreated) return item.yearCreated;
       const [month, day] = item.monthDayCreated.split("/").map(Number);
-      return `${day} ${MONTHS[month - 1]} ${item.yearCreated}`;
+      return `${day ? day + " " : ""}${MONTHS[month - 1]} ${item.yearCreated}`;
     }
 
     // duration reads according to durationType. item.duration is already the first slot's length when none was entered

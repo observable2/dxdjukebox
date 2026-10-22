@@ -13,16 +13,17 @@ export const formatDuration = (sec) => {
   return h > 0 ? h + ":" + p(m) + ":" + p(s) : m + ":" + p(s);
 };
 
-// Years: four digits (1000-9999). Month/Day: "M/D" (e.g. 3/14); a leading zero is tolerated (03/14) and normalized away.
+// Years: four digits (1000-9999). Month/Day: "M/D" (e.g. 3/14), or just "M" (e.g. 3) when the day is not known;
+// a leading zero is tolerated (03/14, 03) and normalized away.
 export const YEAR_PATTERN = "[1-9][0-9]{3}";
-export const MONTHDAY_PATTERN = "(0?[1-9]|1[0-2])/(0?[1-9]|[12][0-9]|3[01])";
+export const MONTHDAY_PATTERN = "(0?[1-9]|1[0-2])(/(0?[1-9]|[12][0-9]|3[01]))?";
 export const currentYear = () => String(new Date().getFullYear());
 export const validYear = (t) => new RegExp("^" + YEAR_PATTERN + "$").test(t ?? "");
 const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];   // Feb 29 allowed: the year may be unknown/leap
 export const validMonthDay = (t) => {
   if (!new RegExp("^" + MONTHDAY_PATTERN + "$").test(t ?? "")) return false;
   const [m, d] = t.split("/").map(Number);
-  return d <= DAYS_IN_MONTH[m - 1];
+  return d === undefined || d <= DAYS_IN_MONTH[m - 1];
 };
 export const normalizeMonthDay = (t) => t.split("/").map(Number).join("/");
 
@@ -34,7 +35,7 @@ export const FIELDS = [
   {key:"title",label:"Title",required:true},{key:"authorship",label:"Authorship"},
   {key:"url",label:"URL",type:"url",required:true},{key:"hideURL",label:"Hide URL",type:"checkbox"},
   {key:"yearCreated",label:"Year created",required:true,pattern:YEAR_PATTERN,placeholder:"e.g. 2024"},
-  {key:"monthDayCreated",label:"Month/Day created",pattern:MONTHDAY_PATTERN,placeholder:"optional, e.g. 3/14"},
+  {key:"monthDayCreated",label:"Month/Day created",pattern:MONTHDAY_PATTERN,placeholder:"optional, e.g. 3/14, or 3 for a month only"},
   {key:"dateRelatedNotes",label:"Date related notes",type:"markdown",rows:2},
   {key:"whereCreated",label:"Where created"},
   {key:"publisher",label:"Publisher"},{key:"media",label:"Constituent media"},

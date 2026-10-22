@@ -126,7 +126,7 @@ function cleanItem(item, slugs) {
   if (!it.title) throw new Error("Title is required");
   if (!it.url) throw new Error("URL is required");
   if (!validYear(it.yearCreated)) throw new Error("Year created is required: a four-digit year, e.g. 2024");
-  if (it.monthDayCreated && !validMonthDay(it.monthDayCreated)) throw new Error("Month/Day created must be a real date as M/D, e.g. 3/14");
+  if (it.monthDayCreated && !validMonthDay(it.monthDayCreated)) throw new Error("Month/Day created must be a real date as M/D, e.g. 3/14, or a month number 1-12");
   if (it.monthDayCreated) it.monthDayCreated = normalizeMonthDay(it.monthDayCreated);
   if (!it.durationType) it.durationType = "work";
   if (!DURATION_TYPES.includes(it.durationType)) throw new Error("Duration type must be one of: " + DURATION_TYPES.join(", "));

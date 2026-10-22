@@ -62,7 +62,7 @@ Security comes from row-level security in `schema.sql`: anyone can read, and onl
 | URL | yes | the page or video file the Screen displays |
 | Hide URL | no | checkbox (default off); when ticked, Titles does not show the URL |
 | Year created | yes | four digits, e.g. `2024` |
-| Month/Day created | no | `M/D`, e.g. `3/14` |
+| Month/Day created | no | `M/D`, e.g. `3/14`, or just a month `M`, e.g. `3` |
 | Where created | no | |
 | Publisher | no | |
 | Constituent media | no | |
@@ -83,7 +83,7 @@ Only Title, URL and Year created are required.
 
 On the Admin page, each form label shows the field's key in parentheses (these keys are the ids Titles uses, below). The items table has a search box above it to find a specific item to edit or delete, matching against title or authorship (case-insensitive, substring match). Clicking **Edit** loads that item into the form above; clicking **Delete** removes it and its slots after confirmation.
 
-- **Years** are four digits (1000–9999). **Month/Day** is written `M/D`. A leading zero is accepted (`03/14`) and stored as `3/14`. The day must exist in that month. `2/29` is allowed because the year may be unknown.
+- **Years** are four digits (1000–9999). **Month/Day** is written `M/D`, or just `M` (1–12) when the day is not known; Titles then shows the month and year (March 2024) instead of the full date. A leading zero is accepted (`03/14`) and stored as `3/14`. The day must exist in that month. `2/29` is allowed because the year may be unknown.
 - **Duration format:** colon separated, with no leading zero on the first number (`3:45`, `90:00`, `1:02:30`, not `03:45`). Numbers after a colon are two digits and below 60 (`3:05`, not `3:5`).
 - **Duration default:** when an item has no duration of its own, it uses the length of its first slot (end minus start): 9:00–10:00 is `1:00:00`, 9:00–9:30 is `30:00`. The first slot is the one with the earliest start date, then the earliest time of day. The default is worked out whenever data is loaded and is not stored, so it follows the schedule. Type a duration and yours wins. Empty the box and it goes back to following the slot.
 

@@ -3,7 +3,9 @@ create table jukebox_items (
   id uuid primary key default gen_random_uuid(),
   title text not null, authorship text, url text not null,
   year_created smallint not null check (year_created between 1000 and 9999),
-  month_day_created text check (month_day_created ~ '^([1-9]|1[0-2])/([1-9]|[12][0-9]|3[01])$'),   -- M/D, e.g. 3/14
+  month_day_created text check (month_day_created ~ '^([1-9]|1[0-2])(/([1-9]|[12][0-9]|3[01]))?$'),   -- M/D, e.g. 3/14, or M alone (month only)
+                             -- (an existing database needs: alter table jukebox_items drop constraint jukebox_items_month_day_created_check;
+                             --  alter table jukebox_items add constraint jukebox_items_month_day_created_check check (month_day_created ~ '^([1-9]|1[0-2])(/([1-9]|[12][0-9]|3[01]))?$');)
   date_related_notes text,   -- free form
                              -- (an existing database needs: alter table jukebox_items add column date_related_notes text;
                              --  alter table jukebox_items drop column year_published, drop column month_day_published;)

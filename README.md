@@ -115,8 +115,6 @@ The **Rotation** section of the Admin page fills the chosen screen's schedule au
 - **Manual slots win.** Where a manual slot and a rotation slot cover the same time, the manual slot is shown, and when the manual slot ends (or its weeks run out) the rotation resumes. Manual slots may be added over a running rotation. The rotation does not shift around them: an item whose turn is covered by a manual slot is simply skipped for that time.
 - Generated slots are marked with `rotation = true` in `jukebox_slots`.
 
-- Screen and Titles poll every 7 seconds and redraw only when the current item changes, so the embedded page is not reloaded on every poll.
-
 ## Show now
 
 The **Show now** section at the bottom of the Admin page picks one item to appear on the chosen screen's Screen and Titles immediately and keep appearing until **Stop showing** is pressed. It beats every slot, manual or generated, the same way a manual slot beats the rotation. Nothing is added to or removed from the schedule, so the slots and the rotation resume as they were once it is cleared. At most one item is pinned per screen; choosing another replaces it. **Previous** and **Next** buttons do a Show now for the item before or after the one showing, going around the generated rotation's cycle (the rotation's items in the order they appear through the day, wrapping at the ends); **Reset to schedule** clears the pin, same as Stop showing. They change nothing in the schedule. The pin is the `pinned_item_id` column on `jukebox_screens`, and deleting the pinned item clears it.
@@ -137,6 +135,14 @@ Cell 2 of `nbks/index.html` decides which fields appear and what they are called
 The link in the lower-right corner of Titles goes to Screen. While a slot is showing it reads "Showing on screen for {time elapsed} of {slot length}" and counts up from 0 each second (the poll supplies the slot's end; the page does the counting). For a pinned item it reads "Showing on screen until further notice", and when nothing is scheduled it just says "Screen".
 
 **Upgrading a project made before screens:** the Supabase tables need a new `jukebox_screens` table, a `screen_id` on slots and a `screens` column on items, and the old `pinned` column on items goes away. The commented migration block at the end of `nbks/schema.sql` does all of it in one run (existing slots go to a new screen 1, `main`).
+
+## Polling
+
+Screen and Titles each ask the database what is current every 7 seconds (`ms` in `watchCurrent`, `nbks/lib.js`) and redraw only when the current item changes, so the embedded page is not reloaded on every poll. That interval is also how long a pin, unpin or new slot made in Admin takes to show up. Slot boundaries themselves are not delayed by it, since the schedule is already known.
+
+- **What a poll fetches:** every item, every screen, and only the current screen's slots, about 54 KB uncompressed (roughly a third of that gzipped) with the current data. It grows with the number of items and slots.
+- **Other screens' slots** are needed only to default an item's duration from its first slot on another screen. They are fetched once and reused for 5 minutes (`OTHER_SLOTS_MS` in `nbks/repo.js`), and forgotten at once after any change made through the app. An edit made in another browser can leave that default out of date for up to 5 minutes.
+- **Cost:** each Screen or Titles page left open all day transfers roughly 3-4 GB a month (estimated, assuming about 10 KB gzipped per poll). Supabase's free tier allows about 5 GB of egress a month, so two such pages can already exceed it. If that happens, lengthen the interval, or poll a cheap change-counter before loading everything.
 
 ## Known limits and open questions
 

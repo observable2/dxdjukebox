@@ -2,7 +2,7 @@
 
 Two synchronized web pages driven by one schedule, plus an admin page that manages both.
 
-- **Screen** shows web content, made to be embedded elsewhere. A URL ending in a video file extension (`.mp4`, `.m4v`, `.webm`, `.mov`, `.ogv`) is played in a muted, looping, letterboxed (never cropped) `<video>`; anything else goes in an iframe.
+- **Screen** shows web content, made to be embedded elsewhere. A URL ending in a video file extension (`.mp4`, `.m4v`, `.webm`, `.mov`, `.ogv`), or in a bare format folder such as Brown Digital Repository's `.../MP4/`, is played in a looping, letterboxed (never cropped) `<video>` without controls; anything else goes in an iframe. On desktop the video tries to play with sound; on mobile it is muted (see Known limits).
 - **Titles** shows the full didactic metadata for exactly what the Screen is currently showing.
 - **Admin** manages the item database, the schedule and the rotation.
 
@@ -146,7 +146,7 @@ The link in the lower-right corner of Titles goes to Screen. While a slot is sho
 - **"First slot"** is by start date and time of day, not by the order slots were added. An item with slots of different lengths gets only the first one's length as its default.
 - Years are not cross-checked, and an explicit duration is not checked against slot lengths.
 - Slots can be added and removed but not yet edited in place.
-- **Video:** playback is muted (browsers block unmuted autoplay) and the file's host must allow direct linking; a file that cannot be played shows a message on Screen.
+- **Video:** desktop browsers try unmuted autoplay first, but block it until the viewer has interacted with the page (or the embedding site, or the site is allowed sound). Until then the video plays muted and gets its sound at the first click or key press. An unattended display needs the browser's autoplay policy relaxed (Chrome: `--autoplay-policy=no-user-gesture-required`), and a page embedding the Screen in an iframe needs `allow="autoplay"` on that iframe. Mobile always plays muted. The file's host must allow direct linking; a file that cannot be played shows a message on Screen.
 - **Rotation:** Generate removes the old rotation before inserting the new one, so a failed insert leaves no rotation (run Generate again). Items flagged after a rotation was generated are not included until you generate again.
 - Screen and Titles can differ by up to one poll interval.
 

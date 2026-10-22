@@ -11,7 +11,13 @@
     const siteLink = page.querySelector("#site-link");
 
     // A URL whose path ends in a video file extension is played in <video>; anything else goes in the iframe.
-    const isVideo = (url) => /\.(mp4|m4v|webm|mov|ogv)$/i.test(url.split(/[?#]/)[0]);
+    // Also a path ending in a bare format folder like Brown Digital Repository's .../MP4/ (served as video/mp4, no extension).
+    const isVideo = (url) => /(\.(mp4|m4v|webm|mov|ogv)|\/(mp4|m4v|webm|mov|ogv)\/?)$/i.test(url.split(/[?#]/)[0]);
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    // Once the viewer interacts, a muted desktop video gets its sound (autoplay rules now allow it).
+    for (const type of ["pointerdown", "keydown"]) {
+      addEventListener(type, () => { if (!isMobile && video.getAttribute("src") && video.muted) video.muted = false; }, {capture: true});
+    }
     // Stops and empties both players so the one not in use is neither visible nor playing in the background.
     function stopAll() {
       frame.style.display = "none";
@@ -28,14 +34,19 @@
       if (isVideo(item.url)) {
         // Set as properties, not just markup attributes: a <video> built from the page template can lose its muted state,
         // and iOS refuses to autoplay (silently, showing nothing) unless it is muted and playsInline.
-        video.muted = true;
         video.playsInline = true;
         video.controls = false;
         video.src = item.url;
         video.title = item.title;
         video.style.display = "block";
-        // autoplay is allowed because the video is muted; if a browser still refuses (e.g. iOS Low Power Mode), show controls so it can be started by hand
-        video.play().catch(() => { video.controls = true; });
+        // Desktop tries sound first; browsers refuse unmuted autoplay until the viewer has interacted with the page (or the
+        // embedding site), so on refusal fall back to muted autoplay, and unmute at the first click/key/touch.
+        // Mobile stays muted (it would refuse anyway). If even muted play is refused (e.g. iOS Low Power Mode), show controls.
+        video.muted = isMobile;
+        video.play().catch(() => {
+          video.muted = true;
+          video.play().catch(() => { video.controls = true; });
+        });
       } else {
         frame.src = item.url;
         frame.title = item.title;

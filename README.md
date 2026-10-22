@@ -115,7 +115,7 @@ The **Rotation** section of the Admin page fills the chosen screen's schedule au
 - **Manual slots win.** Where a manual slot and a rotation slot cover the same time, the manual slot is shown, and when the manual slot ends (or its weeks run out) the rotation resumes. Manual slots may be added over a running rotation. The rotation does not shift around them: an item whose turn is covered by a manual slot is simply skipped for that time.
 - Generated slots are marked with `rotation = true` in `jukebox_slots`.
 
-- Screen and Titles poll every 20 seconds and redraw only when the current item changes, so the embedded page is not reloaded on every poll.
+- Screen and Titles poll every 7 seconds and redraw only when the current item changes, so the embedded page is not reloaded on every poll.
 
 ## Show now
 

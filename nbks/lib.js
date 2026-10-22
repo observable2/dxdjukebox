@@ -202,7 +202,7 @@ export const pickCurrent = (data, now = new Date()) => currentInfo(data, now).it
 // Polls; calls onChange(item|null) only when the current item changes; onError(message) on failure.
 // screenRef names the screen (number or slug; undefined = the lowest-numbered screen).
 // onInfo(currentInfo) is called on every poll (for what can change while the item stays the same, like time left).
-export function watchCurrent(repo, onChange, onError = () => {}, ms = 20000, onInfo = () => {}, screenRef) {
+export function watchCurrent(repo, onChange, onError = () => {}, ms = 7000, onInfo = () => {}, screenRef) {
   let last, stopped = false;
   const tick = async () => {
     try {

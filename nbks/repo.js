@@ -58,7 +58,9 @@ export function supabaseAdapter({url, anonKey}) {
       if (!r.ok) throw new Error("Sign-in failed");
       token = (await r.json()).access_token;
     },
-    list: (t) => call(tbl(t) + "?select=*&order=" + (t === "item" ? "title" : t === "screen" ? "number" : "start_time")),
+    // where/not are {column: value}: only rows that match every "where" pair and none of the "not" pairs
+    list: (t, {where = {}, not = {}} = {}) => call(tbl(t) + "?select=*&order=" + (t === "item" ? "title" : t === "screen" ? "number" : "start_time")
+      + Object.entries(where).map(([k, v]) => "&" + k + "=eq." + v).join("") + Object.entries(not).map(([k, v]) => "&" + k + "=neq." + v).join("")),
     async insert(t, row) { return (await call(tbl(t), {method: "POST", headers: {Prefer: "return=representation"}, body: JSON.stringify(row)}))[0]; },
     async update(t, id, row) {
       const body = t === "item" ? {...row, updated_at: new Date().toISOString()} : row;
@@ -89,7 +91,9 @@ export function localAdapter(key = "dxd-jukebox-dev") {
   };
   return {
     name: "local", needsSignIn: false, canWrite: true, async signIn() {},
-    async list(t) { return read()[t]; },
+    async list(t, {where = {}, not = {}} = {}) {
+      return read()[t].filter((x) => Object.entries(where).every(([k, v]) => x[k] === v) && Object.entries(not).every(([k, v]) => x[k] !== v));
+    },
     async insert(t, row) { const d = read(), r = {id: crypto.randomUUID(), ...row}; d[t].push(r); write(d); return r; },
     async update(t, id, row) { const d = read(), i = d[t].findIndex((x) => x.id === id); d[t][i] = {...d[t][i], ...row}; write(d); return d[t][i]; },
     async insertMany(t, rows) { const d = read(); d[t].push(...rows.map((r) => ({id: crypto.randomUUID(), ...r}))); write(d); },
@@ -138,7 +142,13 @@ function cleanItem(item, slugs) {
 const slugMap = (screens) => Object.fromEntries(screens.map((s) => [s.slug, s.number]));
 const noScreen = (ref) => Object.assign(new Error(ref ? 'There is no screen "' + ref + '"' : "No screens are set up"), {code: "no-screen"});
 
+// Slots on other screens matter only for an item's default duration (see load), which changes rarely, so they are
+// fetched at most this often per screen instead of on every poll.
+const OTHER_SLOTS_MS = 5 * 60 * 1000;
+
 export function createRepo(adapter) {
+  let others = null;   // {screenId, at, slots}: slots on every screen but screenId, as of time "at"
+  const forgetOthers = () => { others = null; };
   const screensOf = async () => (await adapter.list("screen")).map(fromRow.screen);
   return {
     adapter,
@@ -148,12 +158,17 @@ export function createRepo(adapter) {
     // screen (or, failing that, on any screen). When the slot supplied it, durationIsDefault is true and
     // durationDefault holds the same value (nothing is stored on the item).
     async load(screenRef) {
-      const [i, s, sc] = await Promise.all([adapter.list("item"), adapter.list("slot"), adapter.list("screen")]);
+      const [i, sc] = await Promise.all([adapter.list("item"), adapter.list("screen")]);
       const screens = sc.map(fromRow.screen).sort((a, b) => a.number - b.number);
       const screen = findScreen(screens, screenRef);
       if (!screen) throw noScreen(screenRef);
-      const all = s.map(fromRow.slot);
-      const slots = all.filter((x) => x.screenId === screen.id);
+      const stale = !others || others.screenId !== screen.id || Date.now() - others.at > OTHER_SLOTS_MS;
+      const [mine, rest] = await Promise.all([
+        adapter.list("slot", {where: {screen_id: screen.id}}),
+        stale ? adapter.list("slot", {not: {screen_id: screen.id}}) : null]);
+      if (stale) others = {screenId: screen.id, at: Date.now(), slots: rest.map(fromRow.slot)};
+      const slots = mine.map(fromRow.slot);
+      const all = slots.concat(others.slots);
       const items = i.map(fromRow.item).map((it) => {
         if (it.duration) return it;
         const d = defaultDuration(slots, it.id) || defaultDuration(all, it.id);
@@ -166,7 +181,7 @@ export function createRepo(adapter) {
       const row = toRow.item(it);
       return fromRow.item(it.id ? await adapter.update("item", it.id, row) : await adapter.insert("item", row));
     },
-    deleteItem: (id) => adapter.remove("item", id),
+    deleteItem: (id) => { forgetOthers(); return adapter.remove("item", id); },
     // Screens: a number and a slug, each unique. Deleting a screen deletes its slots; the last screen cannot be deleted.
     async saveScreen(screen) {
       const s = {id: screen.id, number: Number(screen.number), slug: str(screen.slug).toLowerCase(), name: str(screen.name), showTitlesLink: screen.showTitlesLink !== false};
@@ -181,6 +196,7 @@ export function createRepo(adapter) {
     },
     async deleteScreen(id) {
       if ((await screensOf()).length < 2) throw new Error("The last screen cannot be deleted");
+      forgetOthers();
       await adapter.remove("screen", id);
     },
     async addSlot({screenId, itemId, days, start, end, weeks = 0, from}) {
@@ -192,12 +208,13 @@ export function createRepo(adapter) {
       const slot = {screenId, itemId, days, start, end, weeks, from};
       // only this screen's slots count: screens are independent. Generated rotation slots are ignored: a manual slot
       // overrides them, so it may sit on top of a rotation
-      const existing = (await adapter.list("slot")).map(fromRow.slot).filter((s) => s.screenId === screenId && !s.rotation);
+      const existing = (await adapter.list("slot", {where: {screen_id: screenId}})).map(fromRow.slot).filter((s) => !s.rotation);
       const clash = findConflict(existing, slot);
       if (clash) throw new Error("Overlaps an existing slot (" + describe(clash) + ")");
+      forgetOthers();
       return fromRow.slot(await adapter.insert("slot", toRow.slot(slot)));
     },
-    deleteSlot: (id) => adapter.remove("slot", id),
+    deleteSlot: (id) => { forgetOthers(); return adapter.remove("slot", id); },
     // Rotation, for one screen: replaces that screen's previous rotation with back-to-back slots cycling through the items
     // flagged rotation=true whose Screens text includes the screen ("all" = every screen, blank = none). Manual slots are kept and win
     // over rotation slots where they overlap (see currentInfo). The old rotation slots are removed first, so a failed
@@ -210,10 +227,11 @@ export function createRepo(adapter) {
       const slugs = slugMap(screens);
       const ids = items.filter((r) => r.rotation && onScreen(r.screens, screen.number, slugs)).map((r) => r.id);
       if (!ids.length) throw new Error("No items flagged \"Included in Rotation\" apply to screen " + screen.number);
+      forgetOthers();
       await adapter.removeAll("slot", {rotation: true, screen_id: screenId});
       await adapter.insertMany("slot", rotationSlots(ids, minutes, todayISO()).map((s) => toRow.slot({...s, screenId})));
     },
-    clearRotation: (screenId) => adapter.removeAll("slot", {rotation: true, screen_id: screenId}),
+    clearRotation: (screenId) => { forgetOthers(); return adapter.removeAll("slot", {rotation: true, screen_id: screenId}); },
     // Un-flags every item (on every screen). Slots (including generated rotations) are not touched.
     resetRotationFlags: () => adapter.updateAll("item", {rotation: false}),
     // Pinning, per screen: a screen has at most one pinned item. It is what that screen's Screen and Titles show, over any

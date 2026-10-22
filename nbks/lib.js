@@ -46,7 +46,7 @@ export const FIELDS = [
   {key:"course",label:"Course"},{key:"mentor",label:"Mentor"},{key:"license",label:"License"},
   {key:"credits",label:"Credits",type:"markdown",rows:2},
   {key:"rotation",label:"Included in Rotation",type:"checkbox"},
-  {key:"screens",label:"Screens",placeholder:"rotation only; all = every screen, blank = none; e.g. 2, 7-10, lobby"}];
+  {key:"screens",label:"Screens",placeholder:"rotation only; all = every screen but galleries, blank = none; e.g. 2, 7-10, lobby"}];
 
 // Markdown (the Notes, Date related notes and Credits fields) to a DOM fragment. "marked" is the parser, passed in by the page (it comes from an npm: import,
 // which only a notebook cell can do). Single newlines stay line breaks, so notes typed as plain text still look the same.
@@ -82,6 +82,11 @@ export function findScreen(screens, ref) {
 // Blank -> [], meaning no screen. ("all" is reserved, so no screen can have it as its slug.)
 // slugs maps slug -> number. An unknown slug is an error unless strict is false (then it is ignored).
 export function parseScreens(text, slugs = {}, strict = true) {
+  const {all, ranges} = scanScreens(text, slugs, strict);
+  return all ? null : ranges;
+}
+// Like parseScreens, but keeps the ranges that were listed alongside "all": {all: boolean, ranges}
+function scanScreens(text, slugs, strict) {
   const ranges = [];
   let all = false;
   for (const raw of String(text ?? "").split(",")) {
@@ -98,12 +103,14 @@ export function parseScreens(text, slugs = {}, strict = true) {
       else if (strict) throw new Error('Screens: there is no screen with the slug "' + tok + '"');
     } else throw new Error('Screens: cannot read "' + raw.trim() + '"; use screen numbers, ranges like 7-10, or slugs, separated by commas');
   }
-  return all ? null : ranges;
+  return {all, ranges};
 }
-// Does an item's Screens text include this screen number? ("all" = yes, blank = no)
-export const onScreen = (text, number, slugs) => {
-  const ranges = parseScreens(text, slugs, false);
-  return !ranges || ranges.some(([lo, hi]) => lo <= number && number <= hi);
+// Does an item's Screens text include this screen ({number, slug})? Blank = no. "all" = yes, except for a gallery screen
+// (one whose slug includes "gallery"), which an item must name explicitly (by number, range or slug, e.g. "all, gallery").
+export const isGallery = (screen) => /gallery/i.test(screen.slug ?? "");
+export const onScreen = (text, screen, slugs) => {
+  const {all, ranges} = scanScreens(text, slugs, false);
+  return ranges.some(([lo, hi]) => lo <= screen.number && screen.number <= hi) || (all && !isGallery(screen));
 };
 
 // Start times: 00:00-23:55 in 5-minute steps. End times: 00:05-24:00 (24:00 = midnight at end of day).

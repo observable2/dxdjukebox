@@ -239,7 +239,7 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
     const ro = !ad.canWrite, {items, slots, screens, screen} = st.data;
     const generated = slots.filter((s) => s.rotation);
     const slugs = Object.fromEntries(screens.map((s) => [s.slug, s.number]));
-    const flagged = items.filter((i) => i.rotation && (!screen || onScreen(i.screens, screen.number, slugs)));
+    const flagged = items.filter((i) => i.rotation && (!screen || onScreen(i.screens, screen, slugs)));
     const mins = (s) => (+s.end.slice(0, 2) * 60 + +s.end.slice(3)) - (+s.start.slice(0, 2) * 60 + +s.start.slice(3));
     const minutes = html`<input type=number min=5 step=5 value=${st.rotMinutes} style="width:5em">`;
     minutes.oninput = () => { st.rotMinutes = +minutes.value; };
@@ -264,7 +264,7 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
         <button disabled=${ro} onclick=${generate}>Generate rotation</button>
         <button disabled=${ro} onclick=${clear}>Clear rotation</button>
         <button disabled=${ro} onclick=${reset}>Set all items' rotation to false</button></div>
-      <p style="color:#666;margin:6px 0">Generate rotation fills every day with back-to-back slots cycling through the ${flagged.length} item${flagged.length === 1 ? "" : "s"} flagged Included in Rotation whose Screens text includes this screen ("all" = every screen, blank = none; the cycle restarts at midnight), replacing this screen's previous rotation. Manual slots are kept and take priority over the rotation while they apply; an item whose turn falls under a manual slot is skipped for that time. Clear rotation removes only this screen's generated slots; item flags are kept.</p>
+      <p style="color:#666;margin:6px 0">Generate rotation fills every day with back-to-back slots cycling through the ${flagged.length} item${flagged.length === 1 ? "" : "s"} flagged Included in Rotation whose Screens text includes this screen ("all" = every screen except galleries, blank = none; the cycle restarts at midnight), replacing this screen's previous rotation. Manual slots are kept and take priority over the rotation while they apply; an item whose turn falls under a manual slot is skipped for that time. Clear rotation removes only this screen's generated slots; item flags are kept.</p>
       ${rotList}</section>`;
   }
 

@@ -77,7 +77,7 @@ Security comes from row-level security in `schema.sql`: anyone can read, and onl
 | License | no | |
 | Credits | no | |
 | Included in Rotation | no | checkbox (default off, key `rotation`); items ticked here are cycled by **Generate rotation** |
-| Screens | no | key `screens`; which screens a rotation may use this item on: screen numbers, ranges and slugs separated by commas, e.g. `2, 7-10, lobby`. `all` means every screen and blank (the default) means none. Only the rotation looks at it; manual slots and Show now can use any item on any screen |
+| Screens | no | key `screens`; which screens a rotation may use this item on: screen numbers, ranges and slugs separated by commas, e.g. `2, 7-10, lobby`. `all` means every screen except a gallery (a screen whose slug includes "gallery") and blank (the default) means none. Only the rotation looks at it; manual slots and Show now can use any item on any screen |
 
 Only Title, URL and Year created are required.
 
@@ -105,7 +105,7 @@ One installation can run any number of screens, each with its own schedule, rota
 
 ## Rotation
 
-The **Rotation** section of the Admin page fills the chosen screen's schedule automatically from the items ticked "Included in Rotation" whose Screens text includes that screen (or is `all`).
+The **Rotation** section of the Admin page fills the chosen screen's schedule automatically from the items ticked "Included in Rotation" whose Screens text includes that screen (or is `all`, which leaves out gallery screens). To rotate an item on a gallery, name the gallery in the Screens text: `all, gallery` means every screen including the gallery, and `4` or `gallery` alone means just that screen.
 
 - **Slot duration** (default 10 minutes; whole minutes in multiples of 5).
 - **Generate rotation** removes the chosen screen's previous rotation (other screens' are untouched) and creates back-to-back slots for every day, 00:00 to 24:00, repeating weekly with no end date from today. They cycle through the flagged items in title order, and the cycle restarts at midnight. If the duration does not divide the day evenly, the last slot of the day is shorter. It needs at least one flagged item.

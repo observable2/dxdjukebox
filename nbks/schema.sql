@@ -19,7 +19,7 @@ create table jukebox_items (
   rotation boolean not null default false,
   hide_url boolean not null default false,
   further_info_url text,
-  screens text,   -- which screens a rotation may use this item on: numbers, ranges, slugs (2, 7-10, lobby); all = every screen; blank = none
+  screens text,   -- which screens a rotation may use this item on: numbers, ranges, slugs (2, 7-10, lobby); all = every screen except a gallery (slug includes "gallery"); blank = none
                   -- (an existing database should keep its items on every screen with: update jukebox_items set screens = 'all' where coalesce(trim(screens), '') = '';)
   updated_at timestamptz default now()
 );

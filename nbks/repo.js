@@ -186,7 +186,7 @@ export function createRepo(adapter) {
     async saveScreen(screen) {
       const s = {id: screen.id, number: Number(screen.number), slug: str(screen.slug).toLowerCase(), name: str(screen.name), showTitlesLink: screen.showTitlesLink !== false};
       if (!Number.isInteger(s.number) || s.number < 1) throw new Error("Screen number must be a whole number, 1 or more");
-      if (s.slug === "all") throw new Error('Screen slug "all" is reserved (in an item\'s Screens text it means every screen)');
+      if (s.slug === "all") throw new Error('Screen slug "all" is reserved (in an item\'s Screens text it means every screen but galleries)');
       if (!validSlug(s.slug)) throw new Error("Screen slug must be lowercase letters, digits and hyphens, starting with a letter, e.g. lobby");
       const others = (await screensOf()).filter((o) => o.id !== s.id);
       if (others.some((o) => o.number === s.number)) throw new Error("Screen number " + s.number + " is already used");
@@ -216,7 +216,7 @@ export function createRepo(adapter) {
     },
     deleteSlot: (id) => { forgetOthers(); return adapter.remove("slot", id); },
     // Rotation, for one screen: replaces that screen's previous rotation with back-to-back slots cycling through the items
-    // flagged rotation=true whose Screens text includes the screen ("all" = every screen, blank = none). Manual slots are kept and win
+    // flagged rotation=true whose Screens text includes the screen ("all" = every screen except galleries, blank = none). Manual slots are kept and win
     // over rotation slots where they overlap (see currentInfo). The old rotation slots are removed first, so a failed
     // insert leaves no rotation.
     async generateRotation(minutes, screenId) {
@@ -225,7 +225,7 @@ export function createRepo(adapter) {
       const screen = screens.find((s) => s.id === screenId);
       if (!screen) throw noScreen();
       const slugs = slugMap(screens);
-      const ids = items.filter((r) => r.rotation && onScreen(r.screens, screen.number, slugs)).map((r) => r.id);
+      const ids = items.filter((r) => r.rotation && onScreen(r.screens, screen, slugs)).map((r) => r.id);
       if (!ids.length) throw new Error("No items flagged \"Included in Rotation\" apply to screen " + screen.number);
       forgetOthers();
       await adapter.removeAll("slot", {rotation: true, screen_id: screenId});

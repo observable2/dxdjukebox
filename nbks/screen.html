@@ -3,12 +3,13 @@
   <title>DxDJ Screen</title>
   <script id="1" type="module" hidden="">
     import {repo} from "./config.js";
-    import {watchCurrent, screenRefFromURL, screenQuery} from "./lib.js";
+    import {watchCurrent, screenRefFromURL, screenQuery, itemRefFromURL} from "./lib.js";
 
     const frame = page.querySelector("#frame");
     const video = page.querySelector("#video");
     const message = page.querySelector("#message");
     const siteLink = page.querySelector("#site-link");
+    const itemRef = itemRefFromURL();   // ?i=slug shows that one item instead of the schedule
 
     // A URL whose path ends in a video file extension is played in <video>; anything else goes in the iframe.
     // Also a path ending in a bare format folder like Brown Digital Repository's .../MP4/ (served as video/mp4, no extension).
@@ -83,9 +84,11 @@
       (info) => {
         isGallery = info.screen.number === 4 || info.screen.slug === "gallery";
         siteLink.style.display = info.screen.showTitlesLink ? "" : "none";
-        siteLink.querySelector("a").href = "https://dxdj.programmatology.com/" + screenQuery(info.screen);   // screen 1: no query
+        // ?i=slug shows that one item (the screen only supplies the settings), and the link goes to its Titles
+        siteLink.querySelector("a").href = "https://dxdj.programmatology.com/" + (itemRef ? "?i=" + encodeURIComponent(itemRef) : screenQuery(info.screen));   // screen 1: no query
       },
-      screenRefFromURL());   // ?s=2 or ?s=lobby picks the screen; none = the lowest-numbered
+      screenRefFromURL(),   // ?s=2 or ?s=lobby picks the screen; none = the lowest-numbered
+      itemRef);
   </script>
   <script id="2" type="text/html" output="page">
     <style>

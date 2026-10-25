@@ -1,12 +1,12 @@
 // The Admin page. mountAdmin(root, repo, html, renderMarkdown): "html" is the htl template tag, passed in by the page;
 // renderMarkdown(text) returns a DOM fragment (used for the Markdown field's preview).
 // Returns a promise that resolves once the first load has been drawn.
-import {FIELDS, DAYS, todayISO, stepRotation, onScreen} from "./lib.js";
+import {FIELDS, DAYS, todayISO, stepRotation, isGallery, groupScreens, slugify} from "./lib.js";
 
 export function mountAdmin(root, repo, html, renderMarkdown) {
   const ad = repo.adapter;
   const st = {
-    data: {items: [], slots: [], screens: [], screen: null, pinnedItemId: null},
+    data: {items: [], slots: [], screens: [], screen: null, pinnedItemId: null, members: []},
     screenRef: undefined,              // number of the screen the schedule, rotation and Show now panels work on (undefined = lowest)
     editingScreen: {},                 // the screen in the screens form ({} = a new one)
     editing: {},                       // the item in the form ({} = a new one)
@@ -22,10 +22,10 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
 
   async function refresh() {
     try {
-      try { st.data = await repo.load(st.screenRef); }
+      try { st.data = await repo.load(st.screenRef, {withMembers: true}); }
       catch (e) {   // the chosen screen no longer exists (deleted, or renumbered): go back to the lowest-numbered one
         if (e.code !== "no-screen" || st.screenRef === undefined) throw e;
-        st.screenRef = undefined; st.data = await repo.load();
+        st.screenRef = undefined; st.data = await repo.load(undefined, {withMembers: true});
       }
       st.screenRef = st.data.screen.number; st.msg = "";
     } catch (e) { st.msg = e.message; }
@@ -49,6 +49,9 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
       e.preventDefault(); await ad.signIn(email.value, pw.value); await refresh();
     })}><b>Admin sign-in</b> ${email} ${pw} <button>Sign in</button> <small>(read-only until signed in)</small></form>`;
   }
+
+  // "Title [slug]": how an item is named wherever the page lists items
+  const withSlug = (it) => it.title + (it.slug ? " [" + it.slug + "]" : "");
 
   // " · screen 2 (lobby)": added to the headings of the panels that work on one screen
   const screenTitle = () => st.data.screen ? " · screen " + st.data.screen.number + " (" + st.data.screen.slug + ")" : "";
@@ -84,7 +87,7 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
           await repo.deleteScreen(s.id); await refresh();
         })}>Delete</button></td></tr>`;
     const manage = html`<details style="margin-top:6px;margin-bottom:12px" open=${st.screensOpen}><summary>Manage screens (${screens.length})</summary>${form}
-        <p style="color:#666;margin:6px 0">A screen has a number and a slug, each unique. An item's Screens text (for rotation) can use numbers, ranges and slugs: <code>2, 7-10, lobby</code>. A page with no <code>?s=</code> shows the lowest-numbered screen. Deleting a screen deletes its slots.</p>
+        <p style="color:#666;margin:6px 0">A screen has a number and a slug, each unique. A page with no <code>?s=</code> shows the lowest-numbered screen. Deleting a screen deletes its slots and its items' memberships of it (the items are kept).</p>
         <table style="width:100%"><tr><th align=left>Number</th><th align=left>Slug</th><th align=left>Name</th><th></th></tr>${screens.map(row)}</table></details>`;
     manage.ontoggle = () => { st.screensOpen = manage.open; };   // only the arrow opens or closes it; redraws keep it as it was
     return html`<section><h3>Screen</h3>
@@ -170,6 +173,7 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
         .item-form input:not([type=checkbox]), .item-form textarea, .item-form select { font-family: inherit; font-size: inherit; }
         .item-form input[type=checkbox] { margin: 0; justify-self: start; }
       </style></form>`;
+    let titleLabel;
     for (const f of FIELDS) {
       const el = f.type === "markdown" ? html`<textarea rows=${f.rows ?? 8}></textarea>`
         : f.type === "textarea" ? html`<textarea rows=2></textarea>`
@@ -186,8 +190,53 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
       if (!isBox) el.style.width = "100%";
       inputs[f.key] = el;
       if (f.type === "markdown") { form.append(markdownField(f, el, ro)); continue; }
-      form.append(html`<label class=${f.type === "textarea" ? "tall" : ""} style="${f.type === "textarea" ? "grid-column:span 2" : ""}"><span>${f.label}${f.required ? " *" : ""} <small>(${f.key})</small></span>${el}</label>`);
+      const label = html`<label class=${f.type === "textarea" ? "tall" : ""} style="${f.type === "textarea" ? "grid-column:span 2" : ""}"><span>${f.label}${f.required ? " *" : ""} <small>(${f.key})</small></span>${el}</label>`;
+      // Title and Slug share one full-width row: the slug's label is only as wide as its text and its field a modest width, so Title gets the rest
+      if (f.key === "title") { titleLabel = label; continue; }
+      if (f.key === "slug") {
+        label.style.gridTemplateColumns = "auto minmax(0, 1fr)";
+        form.append(html`<div style="grid-column:span 2;display:grid;grid-template-columns:minmax(0, 1fr) minmax(15em, 30%);gap:0 20px">${titleLabel}${label}</div>`);
+        continue;
+      }
+      form.append(label);
     }
+    // The slug follows the title as it is typed, until it is edited to something else than the title's own slug
+    let lastTitle = inputs.title.value;
+    inputs.title.addEventListener("input", () => {
+      if (inputs.slug.value === slugify(lastTitle)) inputs.slug.value = slugify(inputs.title.value);
+      lastTitle = inputs.title.value;
+    });
+    // Screens: a sub-table with one row per screen the item belongs to (none if it belongs to none): the screen's name and
+    // slug, a rotation checkbox (is the item in that screen's rotation), and Remove. Screens are whatever exists in the
+    // database; the add menu offers those the item is not yet in, and All screens adds every one except a gallery.
+    let mems = (ed.memberships ?? st.data.members.filter((m) => m.itemId === ed.id)).map((m) => ({screenId: m.screenId, rotation: !!m.rotation}));
+    const screenOf = Object.fromEntries(st.data.screens.map((s) => [s.id, s]));
+    const keep = () => { st.editing = {...st.editing, memberships: mems.map((m) => ({...m}))}; };   // survives a redraw, like typed text
+    const memBody = html`<tbody></tbody>`;
+    const addSel = html`<select></select>`;
+    const addBtn = html`<button type=button onclick=${() => { if (addSel.value) { mems.push({screenId: addSel.value, rotation: false}); keep(); drawMems(); } }}>Add to screen</button>`;
+    const allBtn = html`<button type=button onclick=${() => {
+      for (const s of st.data.screens) if (!isGallery(s) && !mems.some((m) => m.screenId === s.id)) mems.push({screenId: s.id, rotation: false});
+      keep(); drawMems();
+    }}>All screens</button>`;
+    function drawMems() {
+      mems.sort((a, b) => screenOf[a.screenId].number - screenOf[b.screenId].number);
+      // an item in every non-gallery screen with one rotation setting shows as a single "All" row (see groupScreens)
+      const row = (g) => { const s = g.all ? {name: "All", slug: "all"} : screenOf[g.screenIds[0]]; return html`<tr><td>${s.name}</td><td>${s.slug}</td>
+        <td><input type=checkbox checked=${g.rotation} disabled=${ro} onchange=${(e) => { for (const m of mems) if (g.screenIds.includes(m.screenId)) m.rotation = e.target.checked; keep(); }}></td>
+        <td><button type=button disabled=${ro} onclick=${() => { mems = mems.filter((x) => !g.screenIds.includes(x.screenId)); keep(); drawMems(); }}>Remove</button></td></tr>`; };
+      const groups = groupScreens(mems, st.data.screens);
+      memBody.replaceChildren(...(groups.length ? groups.map(row) : [html`<tr><td colspan=4 style="color:#666">Not a member of any screen</td></tr>`]));
+      const free = st.data.screens.filter((s) => !mems.some((m) => m.screenId === s.id));
+      addSel.replaceChildren(...free.map((s) => html`<option value=${s.id}>${s.slug}${s.name ? " · " + s.name : ""}</option>`));
+      addSel.disabled = addBtn.disabled = ro || !free.length;
+      allBtn.disabled = ro || !st.data.screens.some((s) => !isGallery(s) && free.includes(s));
+    }
+    drawMems();
+    form.append(html`<div style="grid-column:span 2;font-family:var(--sans-serif);font-size:0.8em">
+      <b>Screens</b> <small style="color:#777">(the screens this item belongs to; rotation = in that screen's rotation)</small>
+      <table style="margin:4px 0;max-width:none"><thead><tr><th align=left>Name</th><th align=left>Slug</th><th align=left>Rotation</th><th></th></tr></thead>${memBody}</table>
+      <div>${addSel} ${addBtn} ${allBtn}</div></div>`);
     form.append(html`<div style="grid-column:span 2"><button disabled=${ro}>${ed.id ? "Update item" : "Add item"}</button>
       <button type=button onclick=${() => { st.editing = {}; st.msg = ""; render(); }}>Clear</button>
       <small style="color:#666"> * required; everything else is optional</small></div>`);
@@ -195,6 +244,7 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
       e.preventDefault();
       const it = {...st.editing};
       for (const f of FIELDS) it[f.key] = f.type === "checkbox" ? inputs[f.key].checked : inputs[f.key].value;
+      it.memberships = mems.map((m) => ({...m}));
       st.editing = it;                 // keep what was typed if saving fails
       await repo.saveItem(it);
       st.editing = {};
@@ -203,11 +253,15 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
     // One line per item: the table has fixed column widths and a cell too long for its column is cut off with an ellipsis
     // (hover to see it all), so the list is as wide as the form above and no row wraps.
     const cell = (text, extra) => html`<td title=${text} style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${extra ?? text}</td>`;
+    // The screens an item belongs to as slugs (in screen-number order), ↻ after those whose rotation it is in: "main, studio↻"
+    const screenById = Object.fromEntries(st.data.screens.map((s) => [s.id, s]));
+    const screenGroups = (it) => groupScreens(st.data.members.filter((m) => m.itemId === it.id), st.data.screens);
+    const groupName = (g) => g.all ? "all" : screenById[g.screenIds[0]].slug;
+    const screensText = (it) => screenGroups(it).map((g) => groupName(g) + (g.rotation ? " ↻" : "")).join(", ");
     const row = (it) => html`<tr>
-      ${cell(it.title)}${cell(it.authorship)}
+      ${cell(it.title)}${cell(it.slug)}${cell(it.authorship)}
       ${cell(it.duration, html`${it.duration}${it.durationIsDefault ? html` <small style="color:#666">(first slot)</small>` : ""}`)}
-      <td><input type=checkbox checked=${it.rotation} disabled title="Included in Rotation (change it with Edit)"></td>
-      ${cell(it.screens)}
+      ${cell(screensText(it))}
       <td style="white-space:nowrap"><button onclick=${() => { st.editing = it; st.msg = ""; render(); }}>Edit</button>
         <button disabled=${ro} onclick=${guard(async () => {
           if (confirm('Delete "' + it.title + '" and its slots?')) { await repo.deleteItem(it.id); await refresh(); }
@@ -216,11 +270,11 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
     // scrolling a long list. Filtering updates just the table body, not the whole panel, so the
     // search box keeps focus and caret position while typing.
     const matching = (q) => st.data.items.filter((it) =>
-      !q || it.title.toLowerCase().includes(q) || (it.authorship ?? "").toLowerCase().includes(q));
+      !q || it.title.toLowerCase().includes(q) || (it.slug ?? "").includes(q) || (it.authorship ?? "").toLowerCase().includes(q));
     const noMatch = () => html`<tr><td colspan=6 style="color:#666">No items match "${st.search}"</td></tr>`;
     const rowsFor = (q) => { const found = matching(q).map(row); return found.length ? found : [noMatch()]; };
     const tbody = html`<tbody>${rowsFor(st.search.trim().toLowerCase())}</tbody>`;
-    const search = html`<input type=search placeholder="Find an item by title or authorship…" style="width:100%" value=${st.search}
+    const search = html`<input type=search placeholder="Find an item by title, slug or authorship…" style="width:100%" value=${st.search}
       oninput=${() => { st.search = search.value; tbody.replaceChildren(...rowsFor(st.search.trim().toLowerCase())); }}>`;
     const list = html`<details style="margin-top:10px;margin-bottom:12px" open=${st.listOpen}><summary>Item list (${st.data.items.length})</summary>
       <div style="margin-top:6px">${search}</div>
@@ -229,8 +283,8 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
         .items-list input[type=checkbox] { margin: 0; }
       </style>
       <table class="items-list" style="width:100%;max-width:none;table-layout:fixed;margin-top:6px">
-        <colgroup><col style="width:26%"><col style="width:20%"><col style="width:12%"><col style="width:6em"><col style="width:20%"><col style="width:11em"></colgroup>
-        <thead><tr><th>Title</th><th>Authorship</th><th>Duration</th><th>Rotation</th><th>Screens</th><th></th></tr></thead>${tbody}</table></details>`;
+        <colgroup><col style="width:22%"><col style="width:13%"><col style="width:16%"><col style="width:11%"><col style="width:23%"><col style="width:11em"></colgroup>
+        <thead><tr><th>Title</th><th>Slug</th><th>Authorship</th><th>Duration</th><th title="Screens the item belongs to; ↻ = in that screen's rotation">Screens (↻ rotation)</th><th></th></tr></thead>${tbody}</table></details>`;
     list.ontoggle = () => { st.listOpen = list.open; };
     return html`<section><h3>Items (${st.data.items.length})</h3>${form}${list}</section>`;
   }
@@ -238,39 +292,38 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
   function rotationPanel() {
     const ro = !ad.canWrite, {items, slots, screens, screen} = st.data;
     const generated = slots.filter((s) => s.rotation);
-    const slugs = Object.fromEntries(screens.map((s) => [s.slug, s.number]));
-    const flagged = items.filter((i) => i.rotation && (!screen || onScreen(i.screens, screen, slugs)));
+    const flagged = items.filter((i) => st.data.members.some((m) => m.itemId === i.id && m.screenId === screen?.id && m.rotation));
     const mins = (s) => (+s.end.slice(0, 2) * 60 + +s.end.slice(3)) - (+s.start.slice(0, 2) * 60 + +s.start.slice(3));
     const minutes = html`<input type=number min=5 step=5 value=${st.rotMinutes} style="width:5em">`;
     minutes.oninput = () => { st.rotMinutes = +minutes.value; };
     // One row per item in the generated rotation, with the length of its slots (the last slot of the day may be shorter).
     const inRotation = items.filter((i) => generated.some((s) => s.itemId === i.id))
-      .map((i) => ({title: i.authorship ? i.title + " / " + i.authorship : i.title, len: Math.max(...generated.filter((s) => s.itemId === i.id).map(mins))}));
+      .map((i) => ({title: withSlug(i) + (i.authorship ? " / " + i.authorship : ""), len: Math.max(...generated.filter((s) => s.itemId === i.id).map(mins))}));
     const generate = guard(async () => {
       await repo.generateRotation(st.rotMinutes, screen?.id); await refresh();
     });
     const clear = guard(async () => { await repo.clearRotation(screen?.id); await refresh(); });
     const reset = guard(async () => {
-      if (!confirm("Set \"Included in Rotation\" to false for ALL items? (An existing rotation's slots are not touched.)")) return;
-      await repo.resetRotationFlags(); await refresh();
+      if (!confirm("Take ALL items out of the rotation for screen " + screen.number + "? (Their memberships and any existing rotation slots are not touched.)")) return;
+      await repo.resetRotationFlags(screen.id); await refresh();
     });
     const rotList = inRotation.length
       ? html`<details style="margin-top:8px;margin-bottom:12px" open=${st.rotOpen}><summary>Rotation list (${inRotation.length} item${inRotation.length === 1 ? "" : "s"})</summary>
-          <table style="width:100%"><tr><th align=left>Item in rotation (title / authorship)</th><th align=left>Slot duration</th></tr>${inRotation.map((r) => html`<tr><td>${r.title}</td><td>${r.len} min</td></tr>`)}</table></details>`
+          <table style="width:100%"><tr><th align=left>Item in rotation (title [slug] / authorship)</th><th align=left>Slot duration</th></tr>${inRotation.map((r) => html`<tr><td>${r.title}</td><td>${r.len} min</td></tr>`)}</table></details>`
       : html`<p style="color:#666">No rotation is currently scheduled.</p>`;
     rotList.ontoggle = () => { st.rotOpen = rotList.open; };
     return html`<section><h3>Rotation${screenTitle()}</h3>
       <div>Slot duration ${minutes} minutes
         <button disabled=${ro} onclick=${generate}>Generate rotation</button>
         <button disabled=${ro} onclick=${clear}>Clear rotation</button>
-        <button disabled=${ro} onclick=${reset}>Set all items' rotation to false</button></div>
-      <p style="color:#666;margin:6px 0">Generate rotation fills every day with back-to-back slots cycling through the ${flagged.length} item${flagged.length === 1 ? "" : "s"} flagged Included in Rotation whose Screens text includes this screen ("all" = every screen except galleries, blank = none; the cycle restarts at midnight), replacing this screen's previous rotation. Manual slots are kept and take priority over the rotation while they apply; an item whose turn falls under a manual slot is skipped for that time. Clear rotation removes only this screen's generated slots; item flags are kept.</p>
+        <button disabled=${ro} onclick=${reset}>Take all items out of this screen's rotation</button></div>
+      <p style="color:#666;margin:6px 0">Generate rotation fills every day with back-to-back slots cycling through the ${flagged.length} item${flagged.length === 1 ? "" : "s"} in this screen's rotation (set per screen in each item's Screens row; the cycle restarts at midnight), replacing this screen's previous rotation. Manual slots are kept and take priority over the rotation while they apply; an item whose turn falls under a manual slot is skipped for that time. Clear rotation removes only this screen's generated slots; the items' rotation settings are kept.</p>
       ${rotList}</section>`;
   }
 
   function schedulePanel() {
     const ro = !ad.canWrite, {items, slots, screen} = st.data, sf = st.slot;
-    const item = html`<select>${items.map((i) => html`<option value=${i.id} selected=${i.id === sf.itemId}>${i.title}${i.duration ? " (" + i.duration + ")" : ""}</option>`)}</select>`;
+    const item = html`<select>${items.map((i) => html`<option value=${i.id} selected=${i.id === sf.itemId}>${withSlug(i)}${i.duration ? " (" + i.duration + ")" : ""}</option>`)}</select>`;
     const days = DAYS.map((d, i) => html`<label style="margin-right:6px"><input type=checkbox value=${i} checked=${sf.days.includes(i)}> ${d}</label>`);
     const start = html`<input type=time step=300 value=${sf.start}>`;
     // <input type=time> cannot hold 24:00, so the end is a text box: type 24:00 to run to midnight
@@ -285,7 +338,7 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
       await refresh();
     });
     const rows = slots.filter((s) => !s.rotation).sort((a, b) => a.start.localeCompare(b.start)).map((s) => html`<tr>
-      <td>${s.start}–${s.end ?? "?"}</td><td>${items.find((i) => i.id === s.itemId)?.title}</td>
+      <td>${s.start}–${s.end ?? "?"}</td><td>${withSlug(items.find((i) => i.id === s.itemId) ?? {title: ""})}</td>
       <td>${s.days.map((d) => DAYS[d]).join(" ")}</td>
       <td>${s.weeks ? s.weeks + " wk from " : "every week from "}${s.from}</td>
       <td><button disabled=${ro} onclick=${guard(async () => { await repo.deleteSlot(s.id); await refresh(); })}>Remove</button></td></tr>`);
@@ -304,7 +357,7 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
   function pinPanel() {
     const ro = !ad.canWrite, {items, screen} = st.data;
     const pinned = items.find((i) => i.id === st.data.pinnedItemId);
-    const item = html`<select>${items.map((i) => html`<option value=${i.id} selected=${i.id === (pinned?.id ?? st.pinChoice)}>${i.title}</option>`)}</select>`;
+    const item = html`<select>${items.map((i) => html`<option value=${i.id} selected=${i.id === (pinned?.id ?? st.pinChoice)}>${withSlug(i)}</option>`)}</select>`;
     item.onchange = () => { st.pinChoice = item.value; };
     const show = guard(async () => {
       if (!item.value) throw new Error("Add an item first");
@@ -330,7 +383,7 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
       <p style="color:#666;margin:6px 0">Previous and Next do a Show now for the item before or after the one showing, going around the generated rotation's cycle (an item not in the rotation steps to its first or last item). Reset to schedule clears any Show now setting, however it was made (even one this page has not loaded yet), and forgets the dropdown's choice; the rotation and slots were never changed and take over again.</p>
       <p style="color:#666;margin:6px 0">The chosen item is shown on Screen and Titles right away and stays until you press Stop showing, taking priority over manual slots and the rotation, which are not changed and resume afterwards. Choosing another item replaces it.</p>
       ${pinned
-        ? html`<p>Now showing: <b>${pinned.title}</b></p>`
+        ? html`<p>Now showing: <b>${withSlug(pinned)}</b></p>`
         : html`<p style="color:#666">No item is being shown this way.</p>`}</section>`;
   }
 

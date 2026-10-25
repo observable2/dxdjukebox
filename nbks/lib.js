@@ -31,8 +31,15 @@ export const DURATION_TYPES = ["work", "loop", "ambient", "ambient loop"];
 
 // Only Title, URL and Year created are required. Everything else is optional
 // (Duration defaults to the length of the item's first slot).
+// An item's slug: lowercase letters and digits only, unique among items. Blank = derived from the title with slugify.
+export const ITEM_SLUG_PATTERN = "[a-z0-9]+";
+export const validItemSlug = (t) => new RegExp("^" + ITEM_SLUG_PATTERN + "$").test(t ?? "");
+export const slugify = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
 export const FIELDS = [
-  {key:"title",label:"Title",required:true},{key:"authorship",label:"Authorship"},
+  {key:"title",label:"Title",required:true},
+  {key:"slug",label:"Slug",pattern:ITEM_SLUG_PATTERN,placeholder:"blank = from title"},
+  {key:"authorship",label:"Authorship"},
   {key:"url",label:"URL",type:"url",required:true},{key:"hideURL",label:"Hide URL",type:"checkbox"},
   {key:"yearCreated",label:"Year created",required:true,pattern:YEAR_PATTERN,placeholder:"e.g. 2024"},
   {key:"monthDayCreated",label:"Month/Day created",pattern:MONTHDAY_PATTERN,placeholder:"optional, e.g. 3/14, or 3 for a month only"},
@@ -44,9 +51,9 @@ export const FIELDS = [
   {key:"durationType",label:"Duration type",type:"select",options:DURATION_TYPES,default:DURATION_TYPES[0]},
   {key:"notes",label:"Notes",type:"markdown",rows:8},{key:"furtherInfoURL",label:"Further info URL",type:"url"},
   {key:"course",label:"Course"},{key:"mentor",label:"Mentor"},{key:"license",label:"License"},
-  {key:"credits",label:"Credits",type:"markdown",rows:2},
-  {key:"rotation",label:"Included in Rotation",type:"checkbox"},
-  {key:"screens",label:"Screens",placeholder:"rotation only; all = every screen but galleries, blank = none; e.g. 2, 7-10, lobby"}];
+  {key:"credits",label:"Credits",type:"markdown",rows:2}];
+// (Which screens an item belongs to, and whether it is in each one's rotation, are not item fields: they are rows of the
+// item-screens table, one per item and screen, edited in the Admin form's Screens row; see memberships in repo.js.)
 
 // Markdown (the Notes, Date related notes and Credits fields) to a DOM fragment. "marked" is the parser, passed in by the page (it comes from an npm: import,
 // which only a notebook cell can do). Single newlines stay line breaks, so notes typed as plain text still look the same.
@@ -65,7 +72,7 @@ export function markdownFragment(marked, text) {
 }
 
 // Screens: each has a number (1, 2, 3...) and a slug (lowercase, starts with a letter, e.g. "lobby"), so a slug can never be
-// mistaken for a number or a range. A screen is named in a URL (?s=2 or ?s=lobby) and in an item's Screens text.
+// mistaken for a number or a range. A screen is named in a URL (?s=2 or ?s=lobby).
 export const SLUG_PATTERN = "[a-z][a-z0-9-]*";
 export const validSlug = (t) => new RegExp("^" + SLUG_PATTERN + "$").test(t ?? "");
 export const screenRefFromURL = (search = location.search) => new URLSearchParams(search).get("s") || undefined;
@@ -78,40 +85,20 @@ export function findScreen(screens, ref) {
   if (!r) return sorted[0];
   return /^\d+$/.test(r) ? sorted.find((s) => s.number === +r) : sorted.find((s) => s.slug === r);
 }
-// An item's Screens text, e.g. "2, 7-10, lobby" -> [[2,2],[7,10],[lobby's number, same]]. "all" -> null, meaning every screen.
-// Blank -> [], meaning no screen. ("all" is reserved, so no screen can have it as its slug.)
-// slugs maps slug -> number. An unknown slug is an error unless strict is false (then it is ignored).
-export function parseScreens(text, slugs = {}, strict = true) {
-  const {all, ranges} = scanScreens(text, slugs, strict);
-  return all ? null : ranges;
-}
-// Like parseScreens, but keeps the ranges that were listed alongside "all": {all: boolean, ranges}
-function scanScreens(text, slugs, strict) {
-  const ranges = [];
-  let all = false;
-  for (const raw of String(text ?? "").split(",")) {
-    const tok = raw.trim().toLowerCase();
-    if (!tok) continue;
-    let m;
-    if (tok === "all") all = true;
-    else if ((m = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(tok))) {
-      const lo = +m[1], hi = m[2] === undefined ? lo : +m[2];
-      if (lo < 1 || hi < lo) throw new Error('Screens: "' + raw.trim() + '" is not a valid number or range (screens start at 1; a range runs low-high)');
-      ranges.push([lo, hi]);
-    } else if (validSlug(tok)) {
-      if (tok in slugs) ranges.push([slugs[tok], slugs[tok]]);
-      else if (strict) throw new Error('Screens: there is no screen with the slug "' + tok + '"');
-    } else throw new Error('Screens: cannot read "' + raw.trim() + '"; use screen numbers, ranges like 7-10, or slugs, separated by commas');
-  }
-  return {all, ranges};
-}
-// Does an item's Screens text include this screen ({number, slug})? Blank = no. "all" = yes, except for a gallery screen
-// (one whose slug includes "gallery"), which an item must name explicitly (by number, range or slug, e.g. "all, gallery").
+// A gallery screen (slug includes "gallery") is the one kind the Admin form's "All screens" button leaves out.
 export const isGallery = (screen) => /gallery/i.test(screen.slug ?? "");
-export const onScreen = (text, screen, slugs) => {
-  const {all, ranges} = scanScreens(text, slugs, false);
-  return ranges.some(([lo, hi]) => lo <= screen.number && screen.number <= hi) || (all && !isGallery(screen));
-};
+// An item's memberships ([{screenId, rotation}]) as the entries to display: if it belongs to every non-gallery screen (at least
+// two) with the same rotation setting, those rows collapse into one {all: true, screenIds, rotation} entry, shown as "All" /
+// "all", first; every other row is {screenIds: [id], rotation}. Computed on the fly, never stored: add a screen later and
+// the item shows its rows singly again until it is made a member of that one too.
+export function groupScreens(rows, screens) {
+  const base = screens.filter((s) => !isGallery(s));
+  const mine = base.map((s) => rows.find((r) => r.screenId === s.id));
+  const all = base.length >= 2 && mine.every(Boolean) && mine.every((r) => !!r.rotation === !!mine[0].rotation);
+  const out = rows.filter((r) => !all || !base.some((s) => s.id === r.screenId)).map((r) => ({screenIds: [r.screenId], rotation: !!r.rotation}));
+  if (all) out.unshift({all: true, screenIds: base.map((s) => s.id), rotation: !!mine[0].rotation});
+  return out;
+}
 
 // Start times: 00:00-23:55 in 5-minute steps. End times: 00:05-24:00 (24:00 = midnight at end of day).
 export const validTime = (t) => /^([01][0-9]|2[0-3]):[0-5][05]$/.test(t);
@@ -209,11 +196,20 @@ export const pickCurrent = (data, now = new Date()) => currentInfo(data, now).it
 // Polls; calls onChange(item|null) only when the current item changes; onError(message) on failure.
 // screenRef names the screen (number or slug; undefined = the lowest-numbered screen).
 // onInfo(currentInfo) is called on every poll (for what can change while the item stays the same, like time left).
-export function watchCurrent(repo, onChange, onError = () => {}, ms = 7000, onInfo = () => {}, screenRef) {
+// itemSlug (from ?i=, see itemRefFromURL) makes it watch that one item instead of the schedule: the item is shown whatever
+// the slots say, as if pinned; screenRef then only supplies the screen's settings. An unknown slug is an error.
+export const itemRefFromURL = (search = location.search) => (new URLSearchParams(search).get("i") || "").trim().toLowerCase() || undefined;
+export function watchCurrent(repo, onChange, onError = () => {}, ms = 7000, onInfo = () => {}, screenRef, itemSlug) {
   let last, stopped = false;
   const tick = async () => {
     try {
-      const info = currentInfo(await repo.load(screenRef), new Date());
+      const data = await repo.load(screenRef);
+      let info;
+      if (itemSlug) {
+        const item = data.items.find((i) => i.slug === itemSlug);
+        if (!item) throw new Error('There is no item with the slug "' + itemSlug + '"');
+        info = {item, pinned: true, screen: data.screen};
+      } else info = currentInfo(data, new Date());
       const k = JSON.stringify(info.item);
       if (stopped) return;
       onInfo(info);

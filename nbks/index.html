@@ -4,7 +4,7 @@
   
   <script id="1" type="module">
     import {repo} from "./config.js";
-    import {watchCurrent, formatDuration, screenRefFromURL, screenQuery, markdownFragment, FIELDS, stepRotation, currentInfo} from "./lib.js";
+    import {watchCurrent, formatDuration, screenRefFromURL, screenQuery, itemRefFromURL, markdownFragment, FIELDS, stepRotation, currentInfo} from "./lib.js";
     import {marked} from "npm:marked@15.0.12";
 
     const screenLink = page.querySelector("#screen-link");
@@ -15,6 +15,8 @@
 
     // ?s=2 or ?s=lobby picks the screen (none = the lowest-numbered); the Screen link goes to the same one (no ?s= for screen 1)
     const screenRef = screenRefFromURL();
+    // ?i=slug shows the titles of that one item instead of what is scheduled; the Screen link then goes to /screen?i=slug
+    const itemRef = itemRefFromURL();
 
     const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     // yearCreated shows as "14 March 2024" when monthDayCreated (stored as "M/D") is set, "March 2024" when it is just a month
@@ -127,14 +129,15 @@
       (error) => { timing = null; drawScreenLink(); showMessage(error, true); },
       undefined,
       (info) => {
-        timing = info.item ? info : null; drawScreenLink();
-        steppable = info.screen.number === 2 || info.screen.slug === "studio";
+        timing = info.item && !itemRef ? info : null; drawScreenLink();   // a single item has no slot to count through
+        steppable = !itemRef && (info.screen.number === 2 || info.screen.slug === "studio");
         page.querySelector("#step-controls").style.display = steppable ? "" : "none";
         // screen 4 (slug "gallery") is the Distributed Gallery: its h3 says so, whether or not something is showing
         if (info.screen.number === 4 || info.screen.slug === "gallery") siteTitle.textContent = "The Distributed Gallery";
-        screenLink.href = "https://dxdj.programmatology.com/screen" + screenQuery(info.screen);
+        screenLink.href = "https://dxdj.programmatology.com/screen" + (itemRef ? "?i=" + encodeURIComponent(itemRef) : screenQuery(info.screen));
       },
-      screenRef);
+      screenRef,
+      itemRef);
   </script>
 
   <script id="2" type="text/html" output="page">

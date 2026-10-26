@@ -1,7 +1,7 @@
 // The Admin page. mountAdmin(root, repo, html, renderMarkdown): "html" is the htl template tag, passed in by the page;
 // renderMarkdown(text) returns a DOM fragment (used for the Markdown field's preview).
 // Returns a promise that resolves once the first load has been drawn.
-import {FIELDS, DAYS, todayISO, stepRotation, isGallery, groupScreens, slugify} from "./lib.js";
+import {FIELDS, renderedWordCount, DAYS, todayISO, stepRotation, isGallery, groupScreens, slugify} from "./lib.js";
 
 export function mountAdmin(root, repo, html, renderMarkdown) {
   const ad = repo.adapter;
@@ -142,6 +142,14 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
     // rows is the textarea's height in lines; the preview gets the same height (a line is about 1.4em)
     const height = "calc(" + (f.rows ?? 8) + " * var(--monospace-line) + 12px)";   // as tall as the textarea, whose lines are --monospace-line high
     ta.style.resize = (f.rows ?? 8) > 3 ? "vertical" : "none"; preview.style.height = height;
+    // extraHeight (e.g. "1em") makes the field that much taller than its rows give: padding under the text, and the same added to the preview
+    if (f.extraHeight) { ta.style.paddingBottom = "calc(" + f.extraHeight + " + 2px)"; preview.style.height = "calc(" + height + " + " + f.extraHeight + ")"; }
+    // A field with a word limit (maxWords) shows a running count, in red once over
+    const count = f.maxWords ? html`<small style="display:block;color:#777"></small>` : "";
+    if (f.maxWords) {
+      const update = () => { const n = renderedWordCount(renderMarkdown(ta.value)); count.textContent = n + " / " + f.maxWords + " words"; count.style.color = n > f.maxWords ? "crimson" : "#777"; };
+      ta.addEventListener("input", update); update();
+    }
     return html`<div class="md-field" style="grid-column:span 2">
       <style>
         /* Write mode uses the font Observable shows when editing Markdown in a cell (--monospace-font, 14px/1.5) */
@@ -155,7 +163,7 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
         .md-field .md-preview blockquote { padding-left: 0.8em; border-left: 3px solid #ccc; color: #666; }
         .md-field .hint { color: #777; font-size: 0.75em; font-family: var(--sans-serif); }
       </style>
-      <div class="bar"><span><b>${f.label}</b> <small style="color:#777">(${f.key}, Markdown)</small></span>${tools}<span>${write}${prev}</span></div>
+      <div class="bar"><span><b>${f.label}</b> <small style="color:#777">(${f.key}, Markdown or HTML)</small>${count}</span>${tools}<span>${write}${prev}</span></div>
       ${ta}${preview}
       <div class="hint">Markdown: **bold**, *italic*, [text](url), "- " bullets, "1. " numbered, "> " quote; a blank line starts a new paragraph.</div></div>`;
   }
@@ -172,8 +180,20 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
         .item-form label small { color: #777; font-size: 0.85em; overflow-wrap: anywhere; }
         .item-form input:not([type=checkbox]), .item-form textarea, .item-form select { font-family: inherit; font-size: inherit; }
         .item-form input[type=checkbox] { margin: 0; justify-self: start; }
+        /* Abstract (a third) and Notes (two thirds) side by side, each label above its field. A narrow landscape window stacks them,
+           Abstract first; a portrait screen keeps them side by side however narrow it is. */
+        .item-form .md-pair { grid-column: span 2; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 4px 20px; }
+        .item-form .md-pair .bar { flex-wrap: wrap; }
+        .item-form .md-pair .bar > :first-child { flex: 0 0 100%; }
+        /* The two fields share rows (label and toolbar, then text box, then hint), so their text boxes start at the same height
+           however much each one's toolbar wraps, and Notes' extra height shows as extending below Abstract's box. */
+        .item-form .md-pair .md-field { display: grid; grid-row: span 3; grid-template-rows: subgrid; }
+        .item-form .md-pair .md-field > .bar { grid-row: 1; }
+        .item-form .md-pair .md-field > textarea, .item-form .md-pair .md-field > .md-preview { grid-row: 2; align-self: start; }
+        .item-form .md-pair .md-field > .hint { grid-row: 3; }
+        @media (max-width: 700px) and (orientation: landscape) { .item-form .md-pair { grid-template-columns: minmax(0, 1fr); } }
       </style></form>`;
-    let titleLabel;
+    let titleLabel, abstractField;
     for (const f of FIELDS) {
       const el = f.type === "markdown" ? html`<textarea rows=${f.rows ?? 8}></textarea>`
         : f.type === "textarea" ? html`<textarea rows=2></textarea>`
@@ -189,7 +209,15 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
       el.placeholder = fromSlot ? "default: " + ed.duration + " (length of first slot)" : (f.placeholder ?? "");
       if (!isBox) el.style.width = "100%";
       inputs[f.key] = el;
-      if (f.type === "markdown") { form.append(markdownField(f, el, ro)); continue; }
+      if (f.type === "markdown") {
+        const field = markdownField(f, el, ro);
+        if (f.key === "abstract") { abstractField = field; continue; }   // goes in the pair with Notes, just below
+        if (f.key === "notes" && abstractField) {
+          abstractField.style.gridColumn = field.style.gridColumn = "auto";
+          form.append(html`<div class="md-pair">${abstractField}${field}</div>`);
+        } else form.append(field);
+        continue;
+      }
       const label = html`<label class=${f.type === "textarea" ? "tall" : ""} style="${f.type === "textarea" ? "grid-column:span 2" : ""}"><span>${f.label}${f.required ? " *" : ""} <small>(${f.key})</small></span>${el}</label>`;
       // Title and Slug share one full-width row: the slug's label is only as wide as its text and its field a modest width, so Title gets the rest
       if (f.key === "title") { titleLabel = label; continue; }
@@ -246,6 +274,10 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
       for (const f of FIELDS) it[f.key] = f.type === "checkbox" ? inputs[f.key].checked : inputs[f.key].value;
       it.memberships = mems.map((m) => ({...m}));
       st.editing = it;                 // keep what was typed if saving fails
+      for (const f of FIELDS) {   // a word limit counts the words as displayed, which only the renderer can tell (so it is checked here, not in repo)
+        const n = f.maxWords ? renderedWordCount(renderMarkdown(it[f.key])) : 0;
+        if (n > f.maxWords) throw new Error(f.label + " is limited to " + f.maxWords + " words as displayed (it has " + n + ")");
+      }
       await repo.saveItem(it);
       st.editing = {};
       await refresh();

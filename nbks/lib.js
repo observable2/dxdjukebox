@@ -29,6 +29,17 @@ export const normalizeMonthDay = (t) => t.split("/").map(Number).join("/");
 
 export const DURATION_TYPES = ["work", "loop", "ambient", "ambient loop"];
 
+// Abstract: Markdown or HTML like Notes, at most this many words as displayed: only the words that appear on the rendered
+// page count, not Markdown marks, tag names or attributes, comments or link addresses (see renderedWordCount).
+export const ABSTRACT_MAX_WORDS = 101;
+export const wordCount = (t) => String(t ?? "").trim().split(/\s+/).filter(Boolean).length;
+// Words in a rendered DOM fragment (from markdownFragment): its text, with a break after each block element so that
+// paragraphs, list items and the like never run their words together.
+export function renderedWordCount(fragment) {
+  for (const el of fragment.querySelectorAll("p,div,li,br,hr,h1,h2,h3,h4,h5,h6,blockquote,pre,tr,td,th,dt,dd")) el.after(" ");
+  return wordCount(fragment.textContent);
+}
+
 // Only Title, URL and Year created are required. Everything else is optional
 // (Duration defaults to the length of the item's first slot).
 // An item's slug: lowercase letters and digits only, unique among items. Blank = derived from the title with slugify.
@@ -49,7 +60,8 @@ export const FIELDS = [
   {key:"delivery",label:"Delivery medium"},
   {key:"duration",label:"Duration",pattern:DURATION_PATTERN,placeholder:"e.g. 3:45 or 1:02:30; blank = length of first slot"},
   {key:"durationType",label:"Duration type",type:"select",options:DURATION_TYPES,default:DURATION_TYPES[0]},
-  {key:"notes",label:"Notes",type:"markdown",rows:8},{key:"furtherInfoURL",label:"Further info URL",type:"url"},
+  {key:"abstract",label:"Abstract",type:"markdown",rows:8,maxWords:ABSTRACT_MAX_WORDS},
+  {key:"notes",label:"Notes",type:"markdown",rows:8,extraHeight:"1em"},{key:"furtherInfoURL",label:"Further info URL",type:"url"},
   {key:"course",label:"Course"},{key:"mentor",label:"Mentor"},{key:"license",label:"License"},
   {key:"credits",label:"Credits",type:"markdown",rows:2}];
 // (Which screens an item belongs to, and whether it is in each one's rotation, are not item fields: they are rows of the

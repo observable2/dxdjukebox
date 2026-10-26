@@ -12,6 +12,8 @@ create table jukebox_items (
   date_related_notes text,   -- free form
                              -- (an existing database needs: alter table jukebox_items add column date_related_notes text;
                              --  alter table jukebox_items drop column year_published, drop column month_day_published;)
+  abstract text,   -- Markdown or HTML, at most 101 words as displayed (checked by the Admin page: only the renderer can count the displayed words)
+                             -- (an existing database needs the abstract migration at the bottom of this file)
   where_created text,
   publisher text, media text, delivery text,
   duration text check (duration ~ '^(0|[1-9][0-9]*):[0-5][0-9](:[0-5][0-9])?$'),  -- M:SS or H:MM:SS, first number unpadded
@@ -116,6 +118,10 @@ grant execute on function studio_pin(uuid) to anon, authenticated;
 -- create policy "admin write screens" on jukebox_screens for all to authenticated using (true) with check (true);
 -- grant select on jukebox_screens to anon, authenticated;
 -- grant insert, update, delete on jukebox_screens to authenticated;
+--
+-- A database made before item abstracts needs this (existing items are left with a blank abstract):
+--
+-- alter table jukebox_items add column abstract text;
 --
 -- A database made before item-screen memberships (jukebox_items had rotation and screens columns) needs this, run once as a
 -- whole. It creates the table, then turns each item's current Screens text and rotation flag into rows: an item gets a row

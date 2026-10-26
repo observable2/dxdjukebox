@@ -7,6 +7,7 @@ const toRow = {
   item: (i) => ({title: i.title, slug: i.slug, authorship: nul(i.authorship), url: i.url,
     year_created: num(i.yearCreated), month_day_created: nul(i.monthDayCreated),
     date_related_notes: nul(i.dateRelatedNotes),
+    abstract: nul(i.abstract),
     where_created: nul(i.whereCreated),
     publisher: nul(i.publisher), media: nul(i.media), delivery: nul(i.delivery), duration: nul(i.duration), duration_type: i.durationType, notes: nul(i.notes),
     course: nul(i.course), mentor: nul(i.mentor), license: nul(i.license), credits: nul(i.credits),
@@ -19,6 +20,7 @@ const fromRow = {
   item: (r) => ({id: r.id, title: r.title, slug: r.slug ?? "", authorship: r.authorship ?? "", url: r.url,
     yearCreated: r.year_created == null ? "" : String(r.year_created), monthDayCreated: r.month_day_created ?? "",
     dateRelatedNotes: r.date_related_notes ?? "",
+    abstract: r.abstract ?? "",
     whereCreated: r.where_created ?? "",
     publisher: r.publisher ?? "", media: r.media ?? "", delivery: r.delivery ?? "", duration: r.duration ?? "", durationType: r.duration_type ?? "work", notes: r.notes ?? "",
     course: r.course ?? "", mentor: r.mentor ?? "", license: r.license ?? "", credits: r.credits ?? "",
@@ -125,7 +127,7 @@ function cleanItem(item) {
   // An item that came back from load() carries the slot-derived duration in "duration". If that value is still
   // unchanged it must not be frozen into the record; a duration the user typed (different from it) is kept.
   if (it.durationIsDefault && it.duration === it.durationDefault) it.duration = "";
-  for (const k of ["title", "slug", "url", "yearCreated", "monthDayCreated", "duration", "durationType", "furtherInfoURL"]) it[k] = str(it[k]);
+  for (const k of ["title", "slug", "url", "yearCreated", "monthDayCreated", "duration", "durationType", "furtherInfoURL", "abstract"]) it[k] = str(it[k]);
   it.hideURL = !!it.hideURL;
   if (!it.title) throw new Error("Title is required");
   it.slug = it.slug.toLowerCase() || slugify(it.title);   // blank = the title in lowercase letters and digits

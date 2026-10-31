@@ -3,7 +3,7 @@
   "version": "2.1.0",
   "private": true,
   "dependencies": {
-    "@observablehq/notebook-kit": "2.6.6"
+    "@observablehq/notebook-kit": "latest"
   },
   "scripts": {
     "preview": "notebooks preview --root nbks --template nbks/custom.tmpl",

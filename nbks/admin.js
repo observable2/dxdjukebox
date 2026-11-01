@@ -68,14 +68,15 @@ export function mountAdmin(root, repo, html, renderMarkdown) {
     const number = field("number", "Number", html`<input type=number min=1 required style="width:5em">`);
     const slug = field("slug", "Slug", html`<input pattern=${"[a-z][a-z0-9\\-]*"} title="lowercase letters, digits and hyphens, starting with a letter" required size=12>`);
     const name = field("name", "Name", html`<input size=20>`);
+    const transition = field("transitionMessage", "Transition message", html`<input size=30 placeholder="blank: fade only">`);
     const titlesLink = html`<input type=checkbox checked=${ed.showTitlesLink ?? true} disabled=${ro}>`;   // a new screen shows the link
-    const form = html`<form style="margin-top:6px">${number} ${slug} ${name}
+    const form = html`<form style="margin-top:6px">${number} ${slug} ${name} ${transition}
       <label title="A small link on the Screen page to the Titles page for this screen">${titlesLink} Titles link on Screen</label>
       <button disabled=${ro}>${ed.id ? "Update screen" : "Add screen"}</button>
       <button type=button onclick=${() => { st.editingScreen = {}; st.msg = ""; render(); }}>Clear</button></form>`;
     form.onsubmit = guard(async (e) => {
       e.preventDefault();
-      st.editingScreen = {...ed, number: inputs.number.value, slug: inputs.slug.value, name: inputs.name.value, showTitlesLink: titlesLink.checked};   // keep what was typed if saving fails
+      st.editingScreen = {...ed, number: inputs.number.value, slug: inputs.slug.value, name: inputs.name.value, transitionMessage: inputs.transitionMessage.value, showTitlesLink: titlesLink.checked};   // keep what was typed if saving fails
       await repo.saveScreen(st.editingScreen);
       st.editingScreen = {};
       await refresh();

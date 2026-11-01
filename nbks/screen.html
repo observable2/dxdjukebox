@@ -9,6 +9,7 @@
     const video = page.querySelector("#video");
     const message = page.querySelector("#message");
     const siteLink = page.querySelector("#site-link");
+    const fade = page.querySelector("#fade");
     const itemRef = itemRefFromURL();   // ?i=slug shows that one item instead of the schedule
 
     // A URL whose path ends in a video file extension is played in <video>; anything else goes in the iframe.
@@ -27,6 +28,48 @@
       video.style.display = "none";
       video.removeAttribute("src");
       video.load();
+    }
+
+    // Changing from one item to the next fades through black (this screen's optional transition message shows on the black).
+    // Any newer change, message or error cancels a fade in progress. The first item and the messages appear without one.
+    const FADE_MS = 5000, HOLD_MS = 3000, SETTLE_MS = 1000;   // the fade itself, how long the message takes to fade out to black, a pause for the new item to load
+    fade.style.transitionDuration = FADE_MS + "ms";
+    let transitionMessage = "", shown = false, seq = 0;
+    // Web addresses in the message, with or without http(s):// (so dxdj.programmatology.com counts), are colored like the links
+    // on Titles but are not live: the screen is for looking at, and nothing on it takes clicks. A bare one needs a dot and a
+    // letters-only ending (e.g, i.e or 3.5 are not addresses). Trailing punctuation (. , ; : ! ? and a closing bracket) stays outside.
+    function showTransitionMessage(text) {
+      const parts = [];
+      let last = 0;
+      for (const m of text.matchAll(/\b(?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?:[\/?#][^\s<>"]*)?/gi)) {
+        const url = m[0].replace(/[.,;:!?)\]}'"]+$/, "");
+        const span = document.createElement("span");
+        span.className = "fade-link";
+        span.textContent = url;
+        parts.push(text.slice(last, m.index), span);
+        last = m.index + url.length;
+      }
+      parts.push(text.slice(last));
+      // inside one wrapper: #fade is a flex container, which would make each piece its own item and drop the spaces at their edges
+      const line = document.createElement("div");
+      line.style.transition = "opacity " + HOLD_MS + "ms ease";   // for fading the message out to black, see changeItem
+      line.append(...parts);
+      fade.replaceChildren(line);
+    }
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    async function changeItem(item) {
+      const mine = ++seq;
+      if (!shown) { shown = true; showItem(item); return; }
+      showTransitionMessage(transitionMessage);
+      fade.style.opacity = 1;
+      await sleep(FADE_MS);
+      if (mine !== seq) return;
+      showItem(item);
+      // With a message, the hold is the message fading out to black (HOLD_MS long) before the new item fades in
+      if (transitionMessage) fade.firstChild.style.opacity = 0;
+      await sleep(transitionMessage ? HOLD_MS : SETTLE_MS);
+      if (mine !== seq) return;
+      fade.style.opacity = 0;
     }
 
     function showItem(item) {
@@ -57,6 +100,7 @@
     // Set from the poll once the screen is known: screen 4 (slug "gallery") is the Distributed Gallery
     let isGallery = false;
     function showMessage(text, isError) {
+      seq++; shown = false; fade.style.opacity = 0;
       stopAll();
       message.style.color = isError ? "crimson" : "#666";
       if (isGallery && !isError) {
@@ -76,13 +120,14 @@
     });
 
     watchCurrent(repo,
-      (item) => (item ? showItem(item) : showMessage("The DxD Jukebox “Screen” • Nothing is scheduled at this time.", false)),
+      (item) => (item ? changeItem(item) : showMessage("The DxD Jukebox “Screen” • Nothing is scheduled at this time.", false)),
       (error) => showMessage(error, true),
       undefined,
       // The Titles link is hidden until the screen is known, then shown or hidden by that screen's "Show Titles link" setting
       // (Admin), and goes to the Titles page for this same screen (no ?s= for screen 1).
       (info) => {
         isGallery = info.screen.number === 4 || info.screen.slug === "gallery";
+        transitionMessage = info.screen.transitionMessage;
         siteLink.style.display = info.screen.showTitlesLink ? "" : "none";
         // ?i=slug shows that one item (the screen only supplies the settings), and the link goes to its Titles
         siteLink.querySelector("a").href = "https://dxdj.programmatology.com/" + (itemRef ? "?i=" + encodeURIComponent(itemRef) : screenQuery(info.screen));   // screen 1: no query
@@ -98,6 +143,26 @@
         inset: 0;
         width: 100%;
         height: 100%;
+      }
+      #fade {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 2em;
+        background: #000;
+        color: #888;   /* the "nothing is scheduled" gray (#666) lightened to read on black; same as the site link */
+        font-family: var(--serif);
+        font-size: 1.5em;
+        opacity: 0;
+        pointer-events: none;   /* invisible and out of the way except while fading */
+        transition: opacity ease;   /* the duration is FADE_MS, set in the script */
+      }
+      #fade .fade-link {
+        color: #b39b2e;   /* the link color on the Titles page (dim yellow) */
       }
       #site-link {
         position: fixed;   /* fixed, not absolute: stays in the viewport corner even when the page scrolls */
@@ -116,6 +181,7 @@
       <video id="video" autoplay muted loop playsinline style="display:none;object-fit:contain;background:#000"></video>
       <div id="message" style="display:none;align-items:center;justify-content:center;text-align:center;"></div>
     </div>
+    <div id="fade"></div>
     <div id="site-link" style="display:none"><a href="https://dxdj.programmatology.com" target="_top">dxdj.programmatology.com</a></div>
   </script>
 </notebook>

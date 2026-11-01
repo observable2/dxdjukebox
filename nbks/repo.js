@@ -13,7 +13,7 @@ const toRow = {
     course: nul(i.course), mentor: nul(i.mentor), license: nul(i.license), credits: nul(i.credits),
     hide_url: !!i.hideURL, further_info_url: nul(i.furtherInfoURL)}),
   member: (m) => ({item_id: m.itemId, screen_id: m.screenId, rotation: !!m.rotation}),
-  screen: (s) => ({number: s.number, slug: s.slug, name: nul(s.name), show_titles_link: s.showTitlesLink}),
+  screen: (s) => ({number: s.number, slug: s.slug, name: nul(s.name), show_titles_link: s.showTitlesLink, transition_message: nul(s.transitionMessage)}),
   slot: (s) => ({screen_id: s.screenId, item_id: s.itemId, days: s.days, start_time: s.start, end_time: s.end, weeks: s.weeks, from_date: s.from, rotation: !!s.rotation})
 };
 const fromRow = {
@@ -28,7 +28,7 @@ const fromRow = {
   // A membership: the item belongs to the screen; rotation = it is also in that screen's rotation
   member: (r) => ({id: r.id, itemId: r.item_id, screenId: r.screen_id, rotation: !!r.rotation}),
   // pinnedItemId is read-only here: toRow.screen leaves it alone, so saving a screen never changes what is pinned
-  screen: (r) => ({id: r.id, number: r.number, slug: r.slug, name: r.name ?? "", showTitlesLink: r.show_titles_link !== false, pinnedItemId: r.pinned_item_id ?? null}),
+  screen: (r) => ({id: r.id, number: r.number, slug: r.slug, name: r.name ?? "", showTitlesLink: r.show_titles_link !== false, transitionMessage: r.transition_message ?? "", pinnedItemId: r.pinned_item_id ?? null}),
   slot: (r) => ({id: r.id, screenId: r.screen_id, itemId: r.item_id, days: r.days, start: r.start_time, end: r.end_time, weeks: r.weeks, from: r.from_date, rotation: !!r.rotation})
 };
 
@@ -203,7 +203,7 @@ export function createRepo(adapter) {
     deleteItem: (id) => { forgetOthers(); return adapter.remove("item", id); },
     // Screens: a number and a slug, each unique. Deleting a screen deletes its slots; the last screen cannot be deleted.
     async saveScreen(screen) {
-      const s = {id: screen.id, number: Number(screen.number), slug: str(screen.slug).toLowerCase(), name: str(screen.name), showTitlesLink: screen.showTitlesLink !== false};
+      const s = {id: screen.id, number: Number(screen.number), slug: str(screen.slug).toLowerCase(), name: str(screen.name), showTitlesLink: screen.showTitlesLink !== false, transitionMessage: str(screen.transitionMessage)};
       if (!Number.isInteger(s.number) || s.number < 1) throw new Error("Screen number must be a whole number, 1 or more");
       if (s.slug === "all") throw new Error('Screen slug "all" is reserved');
       if (!validSlug(s.slug)) throw new Error("Screen slug must be lowercase letters, digits and hyphens, starting with a letter, e.g. lobby");

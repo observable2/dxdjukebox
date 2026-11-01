@@ -31,6 +31,7 @@ create table jukebox_screens (
   slug text not null unique check (slug ~ '^[a-z][a-z0-9-]*$'),   -- starts with a letter, so it is never mistaken for a number or range
   name text,
   show_titles_link boolean not null default true,   -- whether the Screen page shows a small link to Titles
+  transition_message text,   -- shown on black while the Screen page fades from one item to the next (blank = just the fade)
   pinned_item_id uuid references jukebox_items(id) on delete set null   -- "Show now": shown on this screen over any slot until cleared
 );
 insert into jukebox_screens (number, slug, name) values (1, 'main', 'Main');
@@ -173,3 +174,6 @@ grant execute on function studio_pin(uuid) to anon, authenticated;
 --
 -- A database already migrated to screens (before the Titles link setting) needs only:
 -- alter table jukebox_screens add column show_titles_link boolean not null default true;
+--
+-- A database made before the transition message needs only:
+-- alter table jukebox_screens add column transition_message text;
